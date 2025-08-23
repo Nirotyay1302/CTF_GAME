@@ -1,0 +1,962 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Challenges - HUNTING-CTF</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <style>
+        :root {
+            /* Dark Theme Colors */
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-tertiary: #1f2937;
+            --bg-card: #1e293b;
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            --border-color: #334155;
+            --border-hover: #475569;
+            
+            /* Accent Colors */
+            --accent-primary: #3b82f6;
+            --accent-secondary: #8b5cf6;
+            --accent-success: #10b981;
+            --accent-warning: #f59e0b;
+            --accent-danger: #ef4444;
+            --accent-info: #06b6d4;
+            
+            /* Category Colors */
+            --cat-web: #3b82f6;
+            --cat-crypto: #8b5cf6;
+            --cat-pwn: #ef4444;
+            --cat-reverse: #f59e0b;
+            --cat-forensics: #10b981;
+            --cat-misc: #06b6d4;
+            --cat-osint: #ec4899;
+            --cat-steganography: #84cc16;
+            
+            /* Difficulty Colors */
+            --diff-easy: #22c55e;
+            --diff-medium: #f59e0b;
+            --diff-hard: #ef4444;
+            --diff-expert: #8b5cf6;
+            
+            /* Gradients */
+            --gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --gradient-success: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            --gradient-warning: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --gradient-info: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            
+            /* Shadows */
+            --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+            --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.1);
+            --shadow-lg: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+            --shadow-xl: 0 20px 25px -5px rgb(0 0 0 / 0.1);
+            --shadow-glow: 0 0 20px rgb(59 130 246 / 0.3);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        .header {
+            background: var(--bg-secondary);
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .logo i {
+            color: var(--accent-primary);
+            -webkit-text-fill-color: var(--accent-primary);
+        }
+
+        .header-nav {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .nav-link {
+            color: var(--text-secondary);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.75rem;
+            transition: all 0.3s ease;
+            font-weight: 500;
+            position: relative;
+        }
+
+        .nav-link:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            transform: translateY(-1px);
+        }
+
+        .nav-link.active {
+            background: var(--accent-primary);
+            color: white;
+            box-shadow: var(--shadow-glow);
+        }
+
+        /* Main Content */
+        .main-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Page Header */
+        .page-header {
+            margin-bottom: 2rem;
+        }
+
+        .page-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            background: var(--gradient-primary);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            margin-bottom: 0.5rem;
+        }
+
+        .page-subtitle {
+            color: var(--text-secondary);
+            font-size: 1.1rem;
+        }
+
+        /* Stats Bar */
+        .stats-bar {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 2rem;
+        }
+
+        .stat-item {
+            text-align: center;
+        }
+
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 800;
+            color: var(--accent-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            font-weight: 500;
+        }
+
+        /* Filters */
+        .filters-container {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .filters-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .filters-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .filters-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .filter-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .filter-label {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .filter-select, .filter-input {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .filter-select:focus, .filter-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .filter-buttons {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            color: var(--text-secondary);
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .filter-btn:hover {
+            background: var(--border-color);
+            color: var(--text-primary);
+        }
+
+        .filter-btn.active {
+            background: var(--accent-primary);
+            border-color: var(--accent-primary);
+            color: white;
+        }
+
+        .clear-filters {
+            background: var(--accent-danger);
+            border: none;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .clear-filters:hover {
+            background: #dc2626;
+        }
+
+        /* Challenges Grid */
+        .challenges-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .challenge-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .challenge-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--cat-misc);
+        }
+
+        .challenge-card.web::before { background: var(--cat-web); }
+        .challenge-card.crypto::before { background: var(--cat-crypto); }
+        .challenge-card.pwn::before { background: var(--cat-pwn); }
+        .challenge-card.reverse::before { background: var(--cat-reverse); }
+        .challenge-card.forensics::before { background: var(--cat-forensics); }
+        .challenge-card.misc::before { background: var(--cat-misc); }
+        .challenge-card.osint::before { background: var(--cat-osint); }
+        .challenge-card.steganography::before { background: var(--cat-steganography); }
+
+        .challenge-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--border-hover);
+        }
+
+        .challenge-card.solved {
+            border-color: var(--accent-success);
+            background: linear-gradient(135deg, var(--bg-card) 0%, rgba(16, 185, 129, 0.05) 100%);
+        }
+
+        .challenge-header {
+            display: flex;
+            align-items: flex-start;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+
+        .challenge-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.5rem;
+        }
+
+        .challenge-points {
+            background: var(--accent-primary);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.875rem;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .challenge-badges {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.025em;
+        }
+
+        .badge.category {
+            background: var(--cat-misc);
+            color: white;
+        }
+
+        .badge.category.web { background: var(--cat-web); }
+        .badge.category.crypto { background: var(--cat-crypto); }
+        .badge.category.pwn { background: var(--cat-pwn); }
+        .badge.category.reverse { background: var(--cat-reverse); }
+        .badge.category.forensics { background: var(--cat-forensics); }
+        .badge.category.misc { background: var(--cat-misc); }
+        .badge.category.osint { background: var(--cat-osint); }
+        .badge.category.steganography { background: var(--cat-steganography); }
+
+        .badge.difficulty {
+            background: var(--diff-easy);
+            color: white;
+        }
+
+        .badge.difficulty.medium { background: var(--diff-medium); }
+        .badge.difficulty.hard { background: var(--diff-hard); }
+        .badge.difficulty.expert { background: var(--diff-expert); }
+
+        .badge.solved {
+            background: var(--accent-success);
+            color: white;
+        }
+
+        .challenge-description {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            line-height: 1.6;
+            margin-bottom: 1.5rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        .challenge-footer {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .challenge-action {
+            background: var(--accent-primary);
+            color: white;
+            text-decoration: none;
+            padding: 0.75rem 1.5rem;
+            border-radius: 0.5rem;
+            font-weight: 500;
+            transition: all 0.2s;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .challenge-action:hover {
+            background: #2563eb;
+            transform: translateY(-1px);
+        }
+
+        .challenge-action.solved {
+            background: var(--accent-success);
+        }
+
+        .challenge-action.solved:hover {
+            background: #059669;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 4rem 2rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state i {
+            font-size: 4rem;
+            margin-bottom: 1rem;
+            color: var(--text-muted);
+        }
+
+        .empty-state h3 {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .header-content {
+                padding: 1rem;
+                flex-direction: column;
+                gap: 1rem;
+            }
+
+            .header-nav {
+                flex-wrap: wrap;
+                justify-content: center;
+            }
+
+            .main-content {
+                padding: 1rem;
+            }
+
+            .page-title {
+                font-size: 2rem;
+            }
+
+            .stats-bar {
+                grid-template-columns: repeat(2, 1fr);
+                gap: 1rem;
+            }
+
+            .filters-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .challenges-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .challenge-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 0.5rem;
+            }
+
+            .challenge-footer {
+                flex-direction: column;
+                align-items: stretch;
+                gap: 1rem;
+            }
+        }
+
+        /* Animations */
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fade-in-up {
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        /* Loading States */
+        .loading {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2rem;
+            color: var(--text-secondary);
+        }
+
+        .spinner {
+            width: 1.5rem;
+            height: 1.5rem;
+            border: 2px solid var(--border-color);
+            border-top: 2px solid var(--accent-primary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin-right: 0.75rem;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <i class="fas fa-shield-alt"></i>
+                HUNTING-CTF
+            </div>
+            <nav class="header-nav">
+                <a href="/dashboard" class="nav-link">
+                    <i class="fas fa-home"></i> Dashboard
+                </a>
+                <a href="/challenges" class="nav-link active">
+                    <i class="fas fa-flag"></i> Challenges
+                </a>
+                <a href="/scoreboard" class="nav-link">
+                    <i class="fas fa-trophy"></i> Leaderboard
+                </a>
+                <a href="/teams" class="nav-link">
+                    <i class="fas fa-users"></i> Teams
+                </a>
+                <a href="/profile" class="nav-link">
+                    <i class="fas fa-user"></i> Profile
+                </a>
+            </nav>
+        </div>
+    </header>
+
+    <main class="main-content">
+        <!-- Page Header -->
+        <section class="page-header fade-in-up">
+            <h1 class="page-title">Challenges</h1>
+            <p class="page-subtitle">Test your skills across multiple cybersecurity domains</p>
+        </section>
+
+        <!-- Stats Bar -->
+        <section class="stats-bar fade-in-up">
+            <div class="stat-item">
+                <div class="stat-number">{{ total_challenges }}</div>
+                <div class="stat-label">Total Challenges</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{{ solved_count }}</div>
+                <div class="stat-label">Solved by You</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{{ total_points }}</div>
+                <div class="stat-label">Points Earned</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-number">{{ ((solved_count / total_challenges * 100) | round(1)) if total_challenges > 0 else 0 }}%</div>
+                <div class="stat-label">Completion Rate</div>
+            </div>
+        </section>
+
+        <!-- Filters -->
+        <section class="filters-container fade-in-up">
+            <div class="filters-header">
+                <div class="filters-title">
+                    <i class="fas fa-filter"></i>
+                    Filter Challenges
+                </div>
+                <button class="clear-filters" onclick="clearAllFilters()">
+                    <i class="fas fa-times"></i> Clear All
+                </button>
+            </div>
+
+            <form method="GET" action="/challenges" id="filtersForm">
+                <div class="filters-grid">
+                    <div class="filter-group">
+                        <label class="filter-label">Search</label>
+                        <input type="text" name="search" class="filter-input"
+                               placeholder="Search challenges..."
+                               value="{{ search_query }}"
+                               onkeyup="debounceFilter()">
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">Category</label>
+                        <select name="category" class="filter-select" onchange="applyFilters()">
+                            <option value="">All Categories</option>
+                            {% for category in categories %}
+                            <option value="{{ category }}" {% if category == category_filter %}selected{% endif %}>
+                                {{ category.title() }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">Difficulty</label>
+                        <select name="difficulty" class="filter-select" onchange="applyFilters()">
+                            <option value="">All Difficulties</option>
+                            {% for difficulty in difficulties %}
+                            <option value="{{ difficulty }}" {% if difficulty == difficulty_filter %}selected{% endif %}>
+                                {{ difficulty.title() }}
+                            </option>
+                            {% endfor %}
+                        </select>
+                    </div>
+
+                    <div class="filter-group">
+                        <label class="filter-label">Status</label>
+                        <select name="solved" class="filter-select" onchange="applyFilters()">
+                            <option value="">All Challenges</option>
+                            <option value="solved" {% if solved_filter == 'solved' %}selected{% endif %}>Solved</option>
+                            <option value="unsolved" {% if solved_filter == 'unsolved' %}selected{% endif %}>Unsolved</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Quick Filter Buttons -->
+                <div class="filter-buttons">
+                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'web')">
+                        <i class="fas fa-globe"></i> Web
+                    </button>
+                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'crypto')">
+                        <i class="fas fa-lock"></i> Crypto
+                    </button>
+                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'pwn')">
+                        <i class="fas fa-bug"></i> Pwn
+                    </button>
+                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'reverse')">
+                        <i class="fas fa-undo"></i> Reverse
+                    </button>
+                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'forensics')">
+                        <i class="fas fa-search"></i> Forensics
+                    </button>
+                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'misc')">
+                        <i class="fas fa-puzzle-piece"></i> Misc
+                    </button>
+                    <button type="button" class="filter-btn" onclick="quickFilter('difficulty', 'easy')">
+                        <i class="fas fa-star"></i> Easy
+                    </button>
+                    <button type="button" class="filter-btn" onclick="quickFilter('difficulty', 'medium')">
+                        <i class="fas fa-star-half-alt"></i> Medium
+                    </button>
+                    <button type="button" class="filter-btn" onclick="quickFilter('difficulty', 'hard')">
+                        <i class="fas fa-fire"></i> Hard
+                    </button>
+                </div>
+            </form>
+        </section>
+
+        <!-- Challenges Grid -->
+        <section class="challenges-grid fade-in-up" id="challengesGrid">
+            {% if challenges %}
+                {% for challenge in challenges %}
+                <div class="challenge-card {{ challenge.category }} fade-in-up"
+                     data-category="{{ challenge.category }}"
+                     data-difficulty="{{ challenge.difficulty }}"
+                     data-solved="{{ 'true' if challenge.id in solved_ids else 'false' }}">
+
+                    <div class="challenge-header">
+                        <div>
+                            <h3 class="challenge-title">{{ challenge.title }}</h3>
+                            <div class="challenge-badges">
+                                <span class="badge category {{ challenge.category }}">
+                                    {% if challenge.category == 'web' %}<i class="fas fa-globe"></i>{% endif %}
+                                    {% if challenge.category == 'crypto' %}<i class="fas fa-lock"></i>{% endif %}
+                                    {% if challenge.category == 'pwn' %}<i class="fas fa-bug"></i>{% endif %}
+                                    {% if challenge.category == 'reverse' %}<i class="fas fa-undo"></i>{% endif %}
+                                    {% if challenge.category == 'forensics' %}<i class="fas fa-search"></i>{% endif %}
+                                    {% if challenge.category == 'misc' %}<i class="fas fa-puzzle-piece"></i>{% endif %}
+                                    {% if challenge.category == 'osint' %}<i class="fas fa-eye"></i>{% endif %}
+                                    {% if challenge.category == 'steganography' %}<i class="fas fa-image"></i>{% endif %}
+                                    {{ challenge.category.title() }}
+                                </span>
+                                <span class="badge difficulty {{ challenge.difficulty }}">
+                                    {% if challenge.difficulty == 'easy' %}<i class="fas fa-star"></i>{% endif %}
+                                    {% if challenge.difficulty == 'medium' %}<i class="fas fa-star-half-alt"></i>{% endif %}
+                                    {% if challenge.difficulty == 'hard' %}<i class="fas fa-fire"></i>{% endif %}
+                                    {% if challenge.difficulty == 'expert' %}<i class="fas fa-crown"></i>{% endif %}
+                                    {{ challenge.difficulty.title() }}
+                                </span>
+                                {% if challenge.id in solved_ids %}
+                                <span class="badge solved">
+                                    <i class="fas fa-check"></i> Solved
+                                </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="challenge-points">{{ challenge.points }} pts</div>
+                    </div>
+
+                    <div class="challenge-description">
+                        {{ challenge.description }}
+                    </div>
+
+                    <div class="challenge-footer">
+                        <a href="/challenge/{{ challenge.id }}"
+                           class="challenge-action {% if challenge.id in solved_ids %}solved{% endif %}">
+                            {% if challenge.id in solved_ids %}
+                                <i class="fas fa-check"></i> View Solution
+                            {% else %}
+                                <i class="fas fa-play"></i> Start Challenge
+                            {% endif %}
+                        </a>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-search"></i>
+                    <h3>No Challenges Found</h3>
+                    <p>Try adjusting your filters or search terms.</p>
+                </div>
+            {% endif %}
+        </section>
+    </main>
+
+    <script>
+        // Global variables
+        let filterTimeout;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add staggered animation delays
+            const elements = document.querySelectorAll('.fade-in-up');
+            elements.forEach((el, index) => {
+                el.style.animationDelay = `${index * 0.1}s`;
+            });
+
+            // Update active filter buttons
+            updateActiveFilterButtons();
+
+            // Add smooth scrolling
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    document.querySelector(this.getAttribute('href')).scrollIntoView({
+                        behavior: 'smooth'
+                    });
+                });
+            });
+        });
+
+        // Debounced filter function for search input
+        function debounceFilter() {
+            clearTimeout(filterTimeout);
+            filterTimeout = setTimeout(applyFilters, 500);
+        }
+
+        // Apply filters
+        function applyFilters() {
+            document.getElementById('filtersForm').submit();
+        }
+
+        // Quick filter function
+        function quickFilter(type, value) {
+            const form = document.getElementById('filtersForm');
+            const input = form.querySelector(`[name="${type}"]`);
+
+            if (input.value === value) {
+                // If already selected, clear it
+                input.value = '';
+            } else {
+                // Set the new value
+                input.value = value;
+            }
+
+            applyFilters();
+        }
+
+        // Clear all filters
+        function clearAllFilters() {
+            const form = document.getElementById('filtersForm');
+            const inputs = form.querySelectorAll('input, select');
+
+            inputs.forEach(input => {
+                input.value = '';
+            });
+
+            applyFilters();
+        }
+
+        // Update active filter buttons based on current filters
+        function updateActiveFilterButtons() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const category = urlParams.get('category');
+            const difficulty = urlParams.get('difficulty');
+
+            // Remove all active classes
+            document.querySelectorAll('.filter-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            // Add active class to current filters
+            if (category) {
+                const categoryBtn = document.querySelector(`[onclick="quickFilter('category', '${category}')"]`);
+                if (categoryBtn) categoryBtn.classList.add('active');
+            }
+
+            if (difficulty) {
+                const difficultyBtn = document.querySelector(`[onclick="quickFilter('difficulty', '${difficulty}')"]`);
+                if (difficultyBtn) difficultyBtn.classList.add('active');
+            }
+        }
+
+        // Challenge card interactions
+        document.addEventListener('click', function(e) {
+            if (e.target.closest('.challenge-card')) {
+                const card = e.target.closest('.challenge-card');
+
+                // Add click animation
+                card.style.transform = 'scale(0.98)';
+                setTimeout(() => {
+                    card.style.transform = '';
+                }, 150);
+            }
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', function(e) {
+            // Ctrl/Cmd + K to focus search
+            if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                e.preventDefault();
+                document.querySelector('input[name="search"]').focus();
+            }
+
+            // Escape to clear search
+            if (e.key === 'Escape') {
+                const searchInput = document.querySelector('input[name="search"]');
+                if (searchInput === document.activeElement) {
+                    searchInput.value = '';
+                    debounceFilter();
+                }
+            }
+        });
+
+        // Add loading state for form submissions
+        document.getElementById('filtersForm').addEventListener('submit', function() {
+            const grid = document.getElementById('challengesGrid');
+            grid.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading challenges...
+                </div>
+            `;
+        });
+
+        // Smooth animations for filter changes
+        function animateFilterChange() {
+            const cards = document.querySelectorAll('.challenge-card');
+            cards.forEach((card, index) => {
+                card.style.opacity = '0';
+                card.style.transform = 'translateY(20px)';
+
+                setTimeout(() => {
+                    card.style.opacity = '1';
+                    card.style.transform = 'translateY(0)';
+                }, index * 50);
+            });
+        }
+
+        // Call animation on page load
+        setTimeout(animateFilterChange, 500);
+
+        // Add tooltips for badges
+        document.querySelectorAll('.badge').forEach(badge => {
+            badge.addEventListener('mouseenter', function() {
+                const category = this.textContent.trim();
+                const descriptions = {
+                    'Web': 'Web application security challenges',
+                    'Crypto': 'Cryptography and encryption challenges',
+                    'Pwn': 'Binary exploitation challenges',
+                    'Reverse': 'Reverse engineering challenges',
+                    'Forensics': 'Digital forensics challenges',
+                    'Misc': 'Miscellaneous challenges',
+                    'Osint': 'Open source intelligence challenges',
+                    'Steganography': 'Hidden data challenges',
+                    'Easy': 'Beginner-friendly challenges',
+                    'Medium': 'Intermediate difficulty',
+                    'Hard': 'Advanced challenges',
+                    'Expert': 'Expert-level challenges'
+                };
+
+                if (descriptions[category]) {
+                    this.title = descriptions[category];
+                }
+            });
+        });
+
+        // Add progress tracking
+        function updateProgress() {
+            const totalChallenges = {{ total_challenges }};
+            const solvedChallenges = {{ solved_count }};
+            const percentage = totalChallenges > 0 ? (solvedChallenges / totalChallenges * 100) : 0;
+
+            // Update progress in stats
+            const progressElement = document.querySelector('.stat-number:last-child');
+            if (progressElement) {
+                progressElement.textContent = `${percentage.toFixed(1)}%`;
+            }
+        }
+
+        // Call progress update
+        updateProgress();
+    </script>
+</body>
+</html>

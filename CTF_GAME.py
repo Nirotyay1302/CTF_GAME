@@ -46,6 +46,101 @@ from werkzeug.utils import secure_filename
 import mimetypes
 from config import Config
 
+# Challenge Categories Configuration
+CHALLENGE_CATEGORIES = {
+    'web': {
+        'name': 'Web Security',
+        'icon': 'fas fa-globe',
+        'color': '#3b82f6',
+        'description': 'Web application security challenges including XSS, SQL injection, and more'
+    },
+    'crypto': {
+        'name': 'Cryptography',
+        'icon': 'fas fa-lock',
+        'color': '#8b5cf6',
+        'description': 'Cryptography challenges involving encryption, hashing, and cipher breaking'
+    },
+    'pwn': {
+        'name': 'Binary Exploitation',
+        'icon': 'fas fa-bug',
+        'color': '#ef4444',
+        'description': 'Binary exploitation and buffer overflow challenges'
+    },
+    'reverse': {
+        'name': 'Reverse Engineering',
+        'icon': 'fas fa-undo',
+        'color': '#f59e0b',
+        'description': 'Reverse engineering of software and malware analysis'
+    },
+    'forensics': {
+        'name': 'Digital Forensics',
+        'icon': 'fas fa-search',
+        'color': '#10b981',
+        'description': 'Digital forensics and incident response challenges'
+    },
+    'misc': {
+        'name': 'Miscellaneous',
+        'icon': 'fas fa-puzzle-piece',
+        'color': '#06b6d4',
+        'description': 'Various challenges that don\'t fit other categories'
+    },
+    'osint': {
+        'name': 'OSINT',
+        'icon': 'fas fa-eye',
+        'color': '#ec4899',
+        'description': 'Open Source Intelligence gathering challenges'
+    },
+    'steganography': {
+        'name': 'Steganography',
+        'icon': 'fas fa-image',
+        'color': '#84cc16',
+        'description': 'Hidden data and steganography challenges'
+    },
+    'network': {
+        'name': 'Network Security',
+        'icon': 'fas fa-network-wired',
+        'color': '#6366f1',
+        'description': 'Network security and packet analysis challenges'
+    },
+    'mobile': {
+        'name': 'Mobile Security',
+        'icon': 'fas fa-mobile-alt',
+        'color': '#f97316',
+        'description': 'Mobile application security challenges'
+    }
+}
+
+# Challenge Difficulty Configuration
+CHALLENGE_DIFFICULTIES = {
+    'easy': {
+        'name': 'Easy',
+        'icon': 'fas fa-star',
+        'color': '#22c55e',
+        'points_range': (10, 100),
+        'description': 'Beginner-friendly challenges'
+    },
+    'medium': {
+        'name': 'Medium',
+        'icon': 'fas fa-star-half-alt',
+        'color': '#f59e0b',
+        'points_range': (100, 300),
+        'description': 'Intermediate difficulty challenges'
+    },
+    'hard': {
+        'name': 'Hard',
+        'icon': 'fas fa-fire',
+        'color': '#ef4444',
+        'points_range': (300, 500),
+        'description': 'Advanced challenges requiring expertise'
+    },
+    'expert': {
+        'name': 'Expert',
+        'icon': 'fas fa-crown',
+        'color': '#8b5cf6',
+        'points_range': (500, 1000),
+        'description': 'Expert-level challenges for professionals'
+    }
+}
 
 # Simplified tournament timer functions
 def start_tournament_timer():
@@ -835,6 +930,134 @@ def dashboard_modern():
     """Modern dashboard with improved UX design"""
     return render_template('dashboard_modern.html')
 
+@app.route('/challenges')
+def challenges():
+    """Main challenges page with categories, filtering, and search"""
+    try:
+        # Get filter parameters
+        category_filter = request.args.get('category', '')
+        difficulty_filter = request.args.get('difficulty', '')
+        search_query = request.args.get('search', '')
+        solved_filter = request.args.get('solved', '')  # 'solved', 'unsolved', 'all'
+
+        # Base query for challenges
+        query = Challenge.query
+
+        # Apply filters
+        if category_filter:
+            query = query.filter(Challenge.category == category_filter)
+
+        if difficulty_filter:
+            query = query.filter(Challenge.difficulty == difficulty_filter)
+
+        if search_query:
+            query = query.filter(
+                Challenge.title.contains(search_query) |
+                Challenge.description.contains(search_query)
+            )
+
+        # Get all challenges
+        challenges = query.order_by(Challenge.points.asc(), Challenge.title.asc()).all()
+
+        # Get user's solved challenges if logged in
+        solved_ids = set()
+        user_id = session.get('user_id')
+        if user_id:
+            solved_challenges = Solve.query.filter_by(user_id=user_id).all()
+            solved_ids = {solve.challenge_id for solve in solved_challenges}
+
+        # Apply solved filter
+        if solved_filter == 'solved' and user_id:
+            challenges = [c for c in challenges if c.id in solved_ids]
+        elif solved_filter == 'unsolved' and user_id:
+            challenges = [c for c in challenges if c.id not in solved_ids]
+
+        # Get available categories and difficulties for filters
+        all_categories = db.session.query(Challenge.category).distinct().all()
+        categories = [cat[0] for cat in all_categories if cat[0]]
+
+        all_difficulties = db.session.query(Challenge.difficulty).distinct().all()
+        difficulties = [diff[0] for diff in all_difficulties if diff[0]]
+
+        # Add category and difficulty metadata
+        category_info = {cat: CHALLENGE_CATEGORIES.get(cat, {}) for cat in categories}
+        difficulty_info = {diff: CHALLENGE_DIFFICULTIES.get(diff, {}) for diff in difficulties}
+
+        # Calculate statistics
+        total_challenges = len(challenges)
+        solved_count = len(solved_ids) if user_id else 0
+        total_points = sum(c.points for c in challenges if c.id in solved_ids) if user_id else 0
+
+        return render_template('challenges.html',
+                             challenges=challenges,
+                             solved_ids=solved_ids,
+                             categories=categories,
+                             difficulties=difficulties,
+                             category_info=category_info,
+                             difficulty_info=difficulty_info,
+                             category_filter=category_filter,
+                             difficulty_filter=difficulty_filter,
+                             search_query=search_query,
+                             solved_filter=solved_filter,
+                             total_challenges=total_challenges,
+                             solved_count=solved_count,
+                             total_points=total_points)
+
+    except Exception as e:
+        app.logger.error(f"Error loading challenges: {e}")
+        flash("Error loading challenges. Please try again.", "error")
+        return redirect(url_for('dashboard'))
+
+@app.route('/challenge/<int:challenge_id>')
+def view_challenge(challenge_id):
+    """View individual challenge details"""
+    try:
+        challenge = Challenge.query.get_or_404(challenge_id)
+
+        # Check if user has solved this challenge
+        is_solved = False
+        solve_time = None
+        user_id = session.get('user_id')
+
+        if user_id:
+            solve = Solve.query.filter_by(user_id=user_id, challenge_id=challenge_id).first()
+            if solve:
+                is_solved = True
+                solve_time = solve.timestamp
+
+        # Get challenge metadata
+        category_info = CHALLENGE_CATEGORIES.get(challenge.category, {})
+        difficulty_info = CHALLENGE_DIFFICULTIES.get(challenge.difficulty, {})
+
+        # Get solve count and recent solvers
+        solve_count = Solve.query.filter_by(challenge_id=challenge_id).count()
+        recent_solvers = db.session.query(Solve, User).join(User).filter(
+            Solve.challenge_id == challenge_id
+        ).order_by(Solve.timestamp.desc()).limit(10).all()
+
+        # Get hints if available
+        hints = Hint.query.filter_by(challenge_id=challenge_id).order_by(Hint.cost.asc()).all()
+        user_hints = []
+        if user_id:
+            user_hints = UserHint.query.filter_by(user_id=user_id, challenge_id=challenge_id).all()
+            user_hints = [uh.hint_id for uh in user_hints]
+
+        return render_template('challenge_detail.html',
+                             challenge=challenge,
+                             category_info=category_info,
+                             difficulty_info=difficulty_info,
+                             is_solved=is_solved,
+                             solve_time=solve_time,
+                             solve_count=solve_count,
+                             recent_solvers=recent_solvers,
+                             hints=hints,
+                             user_hints=user_hints)
+
+    except Exception as e:
+        app.logger.error(f"Error loading challenge {challenge_id}: {e}")
+        flash("Challenge not found or error loading challenge.", "error")
+        return redirect(url_for('challenges'))
+
 @app.route('/debug/session')
 def debug_session():
     """Debug route to check session status - bypass auth for debugging"""
@@ -968,6 +1191,82 @@ def api_chat_send():
         return jsonify({
             'success': False,
             'error': 'Could not send message'
+        })
+
+@app.route('/api/challenges/categories')
+def api_challenge_categories():
+    """Get challenge categories with metadata"""
+    try:
+        return jsonify({
+            'success': True,
+            'categories': CHALLENGE_CATEGORIES,
+            'difficulties': CHALLENGE_DIFFICULTIES
+        })
+    except Exception as e:
+        app.logger.error(f"Categories API error: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Could not load categories'
+        })
+
+@app.route('/api/challenges/stats')
+def api_challenge_stats():
+    """Get challenge statistics by category and difficulty"""
+    try:
+        # Get challenge counts by category
+        category_stats = {}
+        for category in CHALLENGE_CATEGORIES.keys():
+            count = Challenge.query.filter_by(category=category).count()
+            category_stats[category] = {
+                'total': count,
+                'info': CHALLENGE_CATEGORIES[category]
+            }
+
+        # Get challenge counts by difficulty
+        difficulty_stats = {}
+        for difficulty in CHALLENGE_DIFFICULTIES.keys():
+            count = Challenge.query.filter_by(difficulty=difficulty).count()
+            difficulty_stats[difficulty] = {
+                'total': count,
+                'info': CHALLENGE_DIFFICULTIES[difficulty]
+            }
+
+        # Get user's progress if logged in
+        user_progress = {}
+        if 'user_id' in session:
+            user_id = session['user_id']
+            solved_challenges = Solve.query.filter_by(user_id=user_id).all()
+            solved_by_category = {}
+            solved_by_difficulty = {}
+
+            for solve in solved_challenges:
+                challenge = Challenge.query.get(solve.challenge_id)
+                if challenge:
+                    # Count by category
+                    cat = challenge.category
+                    solved_by_category[cat] = solved_by_category.get(cat, 0) + 1
+
+                    # Count by difficulty
+                    diff = challenge.difficulty
+                    solved_by_difficulty[diff] = solved_by_difficulty.get(diff, 0) + 1
+
+            user_progress = {
+                'categories': solved_by_category,
+                'difficulties': solved_by_difficulty
+            }
+
+        return jsonify({
+            'success': True,
+            'category_stats': category_stats,
+            'difficulty_stats': difficulty_stats,
+            'user_progress': user_progress
+        })
+
+    except Exception as e:
+        app.logger.error(f"Challenge stats error: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Could not load challenge statistics'
         })
 
 @app.route('/dashboard/fast')
