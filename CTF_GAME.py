@@ -957,22 +957,47 @@ def api_submit_flag(challenge_id):
 
 @app.route('/show_answer/<int:challenge_id>')
 def show_answer(challenge_id):
+    """Show challenge answer with enhanced error handling"""
     if 'user_id' not in session:
+        if request.args.get('format') == 'json':
+            return jsonify({'error': 'Not authenticated'}), 401
         return redirect(url_for('login'))
+
     # Admins should not play
     if session.get('role') == 'admin':
+        if request.args.get('format') == 'json':
+            return jsonify({'error': 'Admins cannot view answers'}), 403
         flash("Admins cannot view answers.", "error")
         return redirect(url_for('admin_panel'))
+
     challenge = db.session.get(Challenge, challenge_id)
     if not challenge:
+        if request.args.get('format') == 'json':
+            return jsonify({'error': 'Challenge not found'}), 404
         flash('Challenge not found.', 'danger')
         return redirect(url_for('dashboard'))
-    answer = fernet.decrypt(challenge.flag_encrypted).decode()
-    
+
+    try:
+        # Try to decrypt the flag
+        if challenge.flag_encrypted:
+            answer = fernet.decrypt(challenge.flag_encrypted).decode()
+        else:
+            answer = "No answer available"
+
+        # Log the answer request for debugging
+        print(f"Answer requested for challenge {challenge_id}: {answer}")
+
+    except Exception as e:
+        print(f"Error decrypting flag for challenge {challenge_id}: {e}")
+        answer = "Error retrieving answer"
+
+        if request.args.get('format') == 'json':
+            return jsonify({'error': 'Error retrieving answer', 'details': str(e)}), 500
+
     # Check if request wants JSON (for enhanced challenge view)
     if request.headers.get('Accept') == 'application/json' or request.args.get('format') == 'json':
-        return jsonify({'answer': answer})
-    
+        return jsonify({'success': True, 'answer': answer})
+
     return render_template('show_answer.html', challenge=challenge, answer=answer)
 
 @app.route('/scoreboard')
@@ -3765,72 +3790,7 @@ def api_fast_challenge(challenge_id):
     except Exception as e:
         return jsonify({'error': f'Challenge API error: {str(e)}'}), 500
 
-@app.route('/api/submit_flag/<int:challenge_id>', methods=['POST'])
-def api_submit_flag(challenge_id):
-    """Fast flag submission API endpoint"""
-    if 'user_id' not in session:
-        return jsonify({'error': 'Not authenticated'}), 401
 
-    try:
-        user_id = session['user_id']
-        data = request.get_json()
-
-        if not data or 'flag' not in data:
-            return jsonify({'error': 'Flag is required'}), 400
-
-        flag = data['flag'].strip()
-        if not flag:
-            return jsonify({'error': 'Flag cannot be empty'}), 400
-
-        # Get user and challenge in one query
-        user = db.session.get(User, user_id)
-        if not user:
-            return jsonify({'error': 'User not found'}), 404
-
-        if user.role == 'admin':
-            return jsonify({'error': 'Admins cannot submit flags'}), 403
-
-        challenge = db.session.get(Challenge, challenge_id)
-        if not challenge:
-            return jsonify({'error': 'Challenge not found'}), 404
-
-        # Check if already solved
-        existing_solve = Solve.query.filter_by(user_id=user_id, challenge_id=challenge_id).first()
-        if existing_solve:
-            return jsonify({'error': 'Challenge already solved'}), 400
-
-        # Check flag
-        if flag == challenge.flag:
-            # Create solve record
-            solve = Solve(
-                user_id=user_id,
-                challenge_id=challenge_id,
-                timestamp=datetime.utcnow()
-            )
-            db.session.add(solve)
-
-            # Update user score
-            user.score += challenge.points
-            db.session.commit()
-
-            # Clear relevant caches
-            clear_cache('leaderboard')
-            clear_cache('challenge_stats')
-            clear_cache(f'fast_user_stats_{user_id}')
-            clear_cache(f'fast_challenge_{challenge_id}_{user_id}')
-
-            return jsonify({
-                'success': True,
-                'message': 'Correct flag! Well done!',
-                'points': challenge.points,
-                'new_score': user.score
-            })
-        else:
-            return jsonify({'error': 'Incorrect flag. Try again!'}), 400
-
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': f'Submission error: {str(e)}'}), 500
 
 @app.route('/admin/optimize_performance', methods=['POST'])
 def optimize_performance():

@@ -410,7 +410,12 @@
                 <i class="fas fa-redo"></i>
                 Try Again
             </button>
-            <button class="action-btn primary" id="showAnswerBtn" onclick="showAnswer()" style="display: none;">
+            <button class="action-btn primary" id="showAnswerBtn" onclick="showAnswer()">
+                <i class="fas fa-eye"></i>
+                Show Answer
+            </button>
+            {% else %}
+            <button class="action-btn primary" id="showAnswerBtn" onclick="showAnswer()">
                 <i class="fas fa-eye"></i>
                 Show Answer
             </button>
@@ -503,39 +508,61 @@
             }
         }
         
-        // Show answer function
+        // Enhanced show answer function with better error handling
         function showAnswer() {
             const answerSection = document.getElementById('answerSection');
             const answerText = document.getElementById('answerText');
             const showAnswerBtn = document.getElementById('showAnswerBtn');
-            
+
+            console.log('Show answer clicked for challenge {{ challenge.id }}');
+
             if (answerSection && answerText) {
                 // Show loading state
                 answerSection.classList.remove('hidden');
-                answerText.textContent = 'Loading...';
+                answerText.textContent = 'Loading answer...';
                 showAnswerBtn.disabled = true;
                 showAnswerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
-                
-                // Fetch the answer
-                fetch(`{{ url_for('show_answer', challenge_id=challenge.id) }}?format=json`)
-                    .then(response => response.json())
-                    .then(data => {
-                        if (data.answer) {
-                            answerText.textContent = data.answer;
-                        } else {
-                            answerText.textContent = 'Answer not available';
+
+                // Fetch the answer with enhanced error handling
+                const url = `{{ url_for('show_answer', challenge_id=challenge.id) }}?format=json`;
+                console.log('Fetching answer from:', url);
+
+                fetch(url)
+                    .then(response => {
+                        console.log('Response status:', response.status);
+                        if (!response.ok) {
+                            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                         }
-                        
+                        return response.json();
+                    })
+                    .then(data => {
+                        console.log('Answer data received:', data);
+
+                        if (data.success && data.answer) {
+                            answerText.innerHTML = `<strong>Flag:</strong> <code style="background: var(--bg-primary); padding: 4px 8px; border-radius: 4px; color: var(--accent-success);">${data.answer}</code>`;
+                        } else if (data.answer) {
+                            answerText.innerHTML = `<strong>Flag:</strong> <code style="background: var(--bg-primary); padding: 4px 8px; border-radius: 4px; color: var(--accent-success);">${data.answer}</code>`;
+                        } else if (data.error) {
+                            answerText.innerHTML = `<span style="color: var(--accent-danger);">Error: ${data.error}</span>`;
+                        } else {
+                            answerText.innerHTML = '<span style="color: var(--text-secondary);">Answer not available</span>';
+                        }
+
                         // Re-enable button
                         showAnswerBtn.disabled = false;
-                        showAnswerBtn.innerHTML = '<i class="fas fa-eye"></i> Show Answer';
+                        showAnswerBtn.innerHTML = '<i class="fas fa-eye"></i> Answer Shown';
+                        showAnswerBtn.style.background = 'var(--accent-success)';
                     })
                     .catch(error => {
                         console.error('Error fetching answer:', error);
-                        answerText.textContent = 'Error loading answer';
+                        answerText.innerHTML = `<span style="color: var(--accent-danger);">Network error: ${error.message}</span>`;
                         showAnswerBtn.disabled = false;
-                        showAnswerBtn.innerHTML = '<i class="fas fa-eye"></i> Show Answer';
+                        showAnswerBtn.innerHTML = '<i class="fas fa-exclamation-triangle"></i> Try Again';
+                        showAnswerBtn.style.background = 'var(--accent-danger)';
                     });
+            } else {
+                console.error('Answer section elements not found');
+                alert('Error: Answer display elements not found on page');
             }
         }
         
