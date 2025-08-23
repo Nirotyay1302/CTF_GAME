@@ -52,15 +52,17 @@ def update_database_schema():
 def create_admin_user():
     """Create default admin user if it doesn't exist"""
     print("👤 Checking admin user...")
-    
+
     with app.app_context():
         try:
+            from werkzeug.security import generate_password_hash
+
             admin = User.query.filter_by(username='admin').first()
             if not admin:
                 admin = User(
                     username='admin',
                     email='admin@ctf.local',
-                    password_hash=hashlib.sha256('admin123'.encode()).hexdigest(),
+                    password_hash=generate_password_hash('admin123'),
                     role='admin',
                     created_at=datetime.utcnow(),
                     email_verified=True
@@ -72,7 +74,7 @@ def create_admin_user():
             else:
                 print("✅ Admin user already exists")
             return True
-            
+
         except Exception as e:
             db.session.rollback()
             print(f"❌ Error creating admin user: {e}")

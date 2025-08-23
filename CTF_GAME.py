@@ -1295,6 +1295,105 @@ def app_info():
 
     return render_template('admin_app_info.html', app_info=app_info)
 
+@app.route('/create_admin_user')
+def create_admin_user_route():
+    """Emergency route to create admin user - accessible without login"""
+    try:
+        # Check if admin already exists
+        admin = User.query.filter_by(username='admin').first()
+        if admin:
+            return jsonify({
+                'status': 'exists',
+                'message': 'Admin user already exists. Try logging in with username: admin, password: admin123'
+            })
+
+        # Create admin user
+        admin = User(
+            username='admin',
+            email='admin@ctf.local',
+            password_hash=generate_password_hash('admin123'),
+            role='admin',
+            created_at=datetime.utcnow(),
+            email_verified=True,
+            total_points=0
+        )
+
+        db.session.add(admin)
+        db.session.commit()
+
+        return jsonify({
+            'status': 'created',
+            'message': 'Admin user created successfully!',
+            'username': 'admin',
+            'password': 'admin123',
+            'note': 'Please change the password after first login'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'status': 'error',
+            'message': f'Error creating admin user: {str(e)}'
+        }), 500
+
+@app.route('/reset_admin_password')
+def reset_admin_password():
+    """Emergency route to reset admin password"""
+    try:
+        admin = User.query.filter_by(username='admin').first()
+        if not admin:
+            return jsonify({
+                'status': 'not_found',
+                'message': 'Admin user not found. Use /create_admin_user first.'
+            })
+
+        # Reset password to default
+        admin.password_hash = generate_password_hash('admin123')
+        db.session.commit()
+
+        return jsonify({
+            'status': 'reset',
+            'message': 'Admin password reset successfully!',
+            'username': 'admin',
+            'password': 'admin123',
+            'note': 'Please change the password after login'
+        })
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'status': 'error',
+            'message': f'Error resetting admin password: {str(e)}'
+        }), 500
+
+@app.route('/debug/users')
+def debug_users():
+    """Debug route to see all users in database"""
+    try:
+        users = User.query.all()
+        user_list = []
+
+        for user in users:
+            user_list.append({
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'role': user.role,
+                'created_at': user.created_at.isoformat() if user.created_at else None,
+                'email_verified': user.email_verified
+            })
+
+        return jsonify({
+            'total_users': len(users),
+            'users': user_list,
+            'admin_exists': any(user.username == 'admin' for user in users)
+        })
+
+    except Exception as e:
+        return jsonify({
+            'error': f'Database error: {str(e)}'
+        }), 500
+
 @app.route('/admin/generate_challenge', methods=['POST'])
 def generate_dynamic_challenge():
     if 'user_id' not in session or session.get('role') != 'admin':
