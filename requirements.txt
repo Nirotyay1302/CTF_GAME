@@ -20,7 +20,8 @@ mysql-connector-python==9.4.0
 
 # Production Server
 gunicorn==23.0.0
-gevent==23.9.1
+# Use eventlet instead of gevent for Python 3.13 compatibility
+eventlet==0.36.1
 
 # Image Processing
 Pillow==10.4.0
