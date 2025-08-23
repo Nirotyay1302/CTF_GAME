@@ -3,11 +3,11 @@ services:
     name: ctf-game
     env: python
     buildCommand: pip install -r requirements.txt
-    startCommand: gunicorn --bind 0.0.0.0:$PORT --worker-class eventlet -w 1 --timeout 120 CTF_GAME:app
+    startCommand: gunicorn --bind 0.0.0.0:$PORT --worker-class gevent -w 1 --timeout 120 CTF_GAME:app
     plan: free
     envVars:
       - key: PYTHON_VERSION
-        value: 3.11.0
+        value: 3.11.9
       - key: SECRET_KEY
         generateValue: true
       - key: FLASK_DEBUG
