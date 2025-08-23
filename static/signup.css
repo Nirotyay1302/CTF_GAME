@@ -1,0 +1,221 @@
+/* Reset & Base */
+
+/* Theme-specific overrides for signup page */
+[data-theme="light"] {
+  /* Light theme specific overrides */
+}
+
+[data-theme="dark"] {
+  /* Dark theme specific overrides */
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: 'Inter', 'Poppins', sans-serif;
+  min-height: 100vh;
+  overflow-x: hidden;
+  background: url("/static/cs.jpg") no-repeat center/cover;
+  color: var(--text-primary);
+}
+
+/* Layout Container */
+.main-container {
+  display: flex;
+  min-height: 100vh;
+  background: rgba(0, 0, 0, 0.6); /* Fallback blend layer */
+}
+
+/* Left Section */
+.left-section {
+  flex: 2;
+  position: relative;
+  background: url("/static/cs.jpg") no-repeat center/cover;
+}
+
+.left-section::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to right, rgba(15, 32, 39, 0.7), rgba(15, 32, 39, 0.2));
+  z-index: 1;
+}
+
+/* Right Section (Form Area) */
+.right-section {
+  flex: 1;
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: 60px 40px;
+  z-index: 2;
+  border-radius: 0;
+  border: 1px solid var(--glass-border);
+  animation: fadeSlideIn 1s ease forwards;
+  opacity: 0;
+}
+
+.right-section h2 {
+  font-size: clamp(24px, 2.5vw, 36px);
+  font-weight: 700;
+  margin-bottom: 40px;
+  text-align: center;
+  color: var(--text-primary);
+}
+
+.right-section h2 i {
+  margin-right: 10px;
+  color: var(--accent-primary);
+}
+
+/* Form Styling */
+form {
+  width: 100%;
+  max-width: 350px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.input-group input {
+  padding: 14px;
+  border: 1px solid var(--input-border);
+  border-radius: 10px;
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 16px;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.input-group input::placeholder {
+  color: var(--text-muted);
+}
+
+.input-group input:focus {
+  outline: none;
+  border-color: var(--input-focus);
+  box-shadow: 0 0 10px rgba(59, 130, 246, 0.3);
+  background: var(--input-bg);
+}
+
+/* Button Styling */
+button {
+  background: var(--button-bg);
+  color: var(--button-text);
+  border: none;
+  border-radius: 10px;
+  padding: 14px 28px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+button:hover {
+  background: var(--button-hover);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+}
+
+button i {
+  font-size: 14px;
+}
+
+/* Links */
+.links, .contact-info {
+  margin-top: 30px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.links p, .contact-info p {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.links a, .contact-info a {
+  color: var(--link-color);
+  text-decoration: none;
+  transition: color 0.3s ease;
+}
+
+.links a:hover, .contact-info a:hover {
+  color: var(--link-hover);
+}
+
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: var(--text-muted);
+  font-size: 14px;
+  transition: color 0.3s ease;
+}
+
+.back-link:hover {
+  color: var(--text-primary);
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .main-container {
+    flex-direction: column;
+  }
+
+  .left-section {
+    display: none;
+  }
+
+  .right-section {
+    flex: none;
+    padding: 40px 20px;
+  }
+
+  .right-section h2 {
+    font-size: 28px;
+  }
+
+  .input-group input {
+    padding: 12px;
+  }
+
+  button {
+    padding: 12px 24px;
+  }
+}
+
+/* Animation */
+@keyframes fadeSlideIn {
+  from {
+    opacity: 0;
+    transform: translateX(30px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}

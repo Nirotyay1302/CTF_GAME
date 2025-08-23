@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Tournaments</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
+  </head>
+  <body>
+    <div class="container" style="max-width: 900px;">
+      <h1>Tournaments</h1>
+      <div style="margin-bottom:12px;">
+        <a class="button" href="{{ url_for('admin_panel') }}">Back to Admin</a>
+      </div>
+      <h3>Create Tournament</h3>
+      <form method="POST">
+        <input type="text" name="name" placeholder="Name" required style="width:100%; margin-bottom:8px;" />
+        <input type="text" name="start_time" placeholder="Start (YYYY-MM-DDTHH:MM:SS)" required style="width:100%; margin-bottom:8px;" />
+        <input type="text" name="end_time" placeholder="End (YYYY-MM-DDTHH:MM:SS)" required style="width:100%; margin-bottom:8px;" />
+        <button type="submit">Create</button>
+      </form>
+      <h3 style="margin-top:18px;">Existing</h3>
+      <table style="width:100%; border-collapse: collapse;">
+        <thead>
+          <tr style="text-align:left; border-bottom:1px solid #444;">
+            <th>#</th>
+            <th>Name</th>
+            <th>Start</th>
+            <th>End</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for t in tournaments %}
+          <tr style="border-bottom:1px solid #333;">
+            <td>{{ loop.index }}</td>
+            <td>{{ t.name }}</td>
+            <td>{{ t.start_time }}</td>
+            <td>{{ t.end_time }}</td>
+            <td>{{ 'Active' if t.active else 'Inactive' }}</td>
+            <td>
+              {% if not t.active %}
+              <form method="POST" action="{{ url_for('activate_tournament', tournament_id=t.id) }}" style="display:inline-block;">
+                <button type="submit">Activate</button>
+              </form>
+              {% else %}
+              <form method="POST" action="{{ url_for('deactivate_tournament', tournament_id=t.id) }}" style="display:inline-block;">
+                <button type="submit">Deactivate</button>
+              </form>
+              {% endif %}
+            </td>
+          </tr>
+          {% else %}
+          <tr>
+            <td colspan="6" style="padding:10px; color:#cbd5e1;">No tournaments yet.</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% include '_contact_footer.html' %}
+  </body>
+</html>
+

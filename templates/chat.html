@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HUNTING-CTF Chat</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+</head>
+<body>
+    <!-- Header -->
+    <header class="chat-header">
+        <div class="header-content">
+            <div class="header-left">
+                <a href="{{ url_for('dashboard_enhanced') }}" class="back-btn">
+                    <i class="fas fa-arrow-left"></i>
+                    <span>Back to Dashboard</span>
+                </a>
+            </div>
+            
+            <div class="header-center">
+                <h1 class="chat-title">
+                    <i class="fas fa-comments"></i>
+                    CTF Game Chat
+                </h1>
+            </div>
+            
+            <div class="header-right">
+                <div class="user-info">
+                    <div class="profile-picture-container">
+                        {% if user.profile_picture %}
+                            <img src="{{ url_for('profile_picture', filename=user.profile_picture) }}" alt="Profile Picture" class="profile-picture">
+                        {% else %}
+                            <div class="profile-picture-placeholder">
+                                <i class="fas fa-user"></i>
+                            </div>
+                        {% endif %}
+                    </div>
+                    <span class="username">{{ user.username }}</span>
+                    <div class="score-badge">
+                        <i class="fas fa-star"></i>
+                        <span>{{ user.score }}</span>
+                    </div>
+                </div>
+                
+                <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Chat Container -->
+    <main class="chat-container">
+        <!-- Chat Messages Area -->
+        <div class="chat-messages" id="chatMessages">
+            <!-- Messages will be loaded here dynamically -->
+            <div class="loading-messages">
+                <i class="fas fa-spinner fa-spin"></i>
+                <span>Loading messages...</span>
+            </div>
+        </div>
+
+        <!-- Chat Input Area -->
+        <div class="chat-input-area">
+            <div class="input-container">
+                <div class="input-wrapper">
+                    <textarea 
+                        id="messageInput" 
+                        placeholder="Type your message here... (Press Enter to send, Shift+Enter for new line)"
+                        rows="1"
+                        maxlength="500"
+                    ></textarea>
+                    <div class="input-actions">
+                        <span class="char-count" id="charCount">0/500</span>
+                        <button class="send-btn" id="sendBtn" disabled>
+                            <i class="fas fa-paper-plane"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Hidden inputs for JavaScript -->
+    <input type="hidden" id="currentUserId" value="{{ user.id }}">
+    
+    <!-- Scripts -->
+    <script src="{{ url_for('static', filename='chat.js') }}"></script>
+</body>
+</html>

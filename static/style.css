@@ -1,0 +1,244 @@
+/* === Base Reset & Theme Vars === */
+/* Note: Theme variables are now defined in theme.css */
+
+/* Theme-specific overrides for this file */
+[data-theme="light"] {
+  /* Light theme specific overrides */
+}
+
+[data-theme="dark"] {
+  /* Dark theme specific overrides */
+}
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Inter', 'Poppins', 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background:
+    radial-gradient(1000px 500px at 0% -10%, var(--bg-tertiary) 0%, transparent 60%),
+    radial-gradient(1000px 500px at 120% 0%, var(--bg-tertiary) 0%, transparent 60%),
+    linear-gradient(135deg, var(--bg-primary) 0%, var(--bg-secondary) 100%);
+  min-height: 100vh;
+  color: var(--text-primary);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+
+/* === Container === */
+.container {
+  background: var(--bg-panel);
+  padding: 32px 20px;
+  border-radius: 16px;
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--border-color);
+  text-align: center;
+  width: 95vw;
+  max-width: 420px;
+  margin: 24px auto;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+@media (min-width: 600px) {
+  .container {
+    padding: 40px 60px;
+    max-width: 500px;
+  }
+}
+
+/* === Headings === */
+h1, h2, h3 {
+  color: var(--accent-primary);
+  margin-bottom: 18px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+h1 { font-size: 2.1rem; }
+h2 { font-size: 1.5rem; }
+h3 { font-size: 1.2rem; }
+
+h1 i, h2 i, h3 i {
+  margin-right: 10px;
+  color: var(--accent-primary);
+}
+
+/* === Paragraphs === */
+p {
+  color: var(--text-secondary);
+  font-size: 1.08rem;
+  margin-bottom: 12px;
+}
+
+/* === Buttons === */
+.button, button, input[type="submit"], .btn {
+  display: inline-block;
+  background: linear-gradient(90deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+  color: var(--button-text);
+  border: none;
+  border-radius: 8px;
+  padding: 12px 28px;
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 10px 0;
+  cursor: pointer;
+  box-shadow: var(--shadow-md);
+  transition: all 0.2s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.button:hover, button:hover, input[type="submit"]:hover, .btn:hover {
+  background: linear-gradient(90deg, var(--accent-secondary) 0%, var(--accent-primary) 100%);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-lg);
+}
+
+.button:active, button:active, input[type="submit"]:active, .btn:active {
+  transform: translateY(0);
+}
+
+.button i, button i, input[type="submit"] i, .btn i {
+  font-size: 14px;
+}
+
+/* === Forms === */
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin: 20px 0;
+}
+
+input[type="text"], input[type="email"], input[type="password"] {
+  background: var(--input-bg);
+  border: 1px solid var(--input-border);
+  color: var(--text-primary);
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus {
+  outline: none;
+  border-color: var(--input-focus);
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+input::placeholder {
+  color: var(--text-muted);
+}
+
+label {
+  color: var(--text-secondary);
+  font-weight: 500;
+  margin-bottom: 5px;
+  display: block;
+}
+
+/* === Links === */
+a {
+  color: var(--link-color);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+a:hover {
+  color: var(--link-hover);
+}
+
+/* === Utility Classes === */
+.challenge-container, .message {
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 20px;
+  margin: 10px 0;
+}
+
+.message {
+  background: var(--bg-secondary);
+  border-left: 4px solid var(--accent-primary);
+  margin: 15px 0;
+}
+
+.mt-2 { margin-top: 12px; }
+.mt-4 { margin-top: 24px; }
+.text-center { text-align: center; }
+.text-success { color: var(--accent-success); }
+.text-danger { color: var(--accent-danger); }
+.text-warning { color: var(--accent-warning); }
+.text-info { color: var(--accent-info); }
+
+/* === Scrollbar Styling === */
+body::-webkit-scrollbar { 
+  width: 0.45em; 
+  background: transparent; 
+}
+
+body::-webkit-scrollbar-thumb { 
+  background: var(--border-color); 
+  border-radius: 8px; 
+}
+
+body { 
+  scrollbar-width: thin; 
+  scrollbar-color: var(--border-color) var(--bg-primary); 
+}
+
+/* === Responsive Design === */
+@media (max-width: 600px) {
+  .container {
+    padding: 24px 16px;
+    margin: 16px;
+  }
+
+  h1 { font-size: 1.4rem; }
+  h2 { font-size: 1.1rem; }
+  .button, button, input[type="submit"], .btn {
+    padding: 10px 20px;
+    font-size: 0.9rem;
+  }
+
+  form {
+    gap: 12px;
+  }
+}
+
+/* === Button Group === */
+.btn-group {
+  display: flex;
+  gap: 1rem;
+  justify-content: center;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+
+/* === Glass Effect === */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid var(--glass-border);
+}
+
+
+
+
+
+
+
+
+
+
+
+

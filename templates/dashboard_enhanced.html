@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+                  <title>HUNTING-CTF Dashboard</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+  <link rel="stylesheet" href="{{ url_for('static', filename='dashboard_enhanced.css') }}">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+  <script src="{{ url_for('static', filename='theme.js') }}"></script>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <div class="header-content">
+      <div class="header-left">
+        <h1 class="logo">
+          <i class="fas fa-shield-alt"></i>
+                            HUNTING-CTF
+        </h1>
+      </div>
+      
+      <div class="header-center">
+        <div class="search-container">
+          <i class="fas fa-search search-icon"></i>
+          <input type="text" id="challengeSearch" placeholder="Search challenges..." class="search-input">
+        </div>
+      </div>
+      
+      <div class="header-right">
+        <div class="user-info">
+          <div class="profile-picture-container">
+            {% if user.profile_picture %}
+              <img src="{{ url_for('profile_picture', filename=user.profile_picture) }}" alt="Profile Picture" class="profile-picture">
+            {% else %}
+              <div class="profile-picture-placeholder">
+                <i class="fas fa-user"></i>
+              </div>
+            {% endif %}
+          </div>
+          <span class="username">{{ session.username }}</span>
+          <div class="score-badge">
+            <i class="fas fa-star"></i>
+            <span id="userScore">{{ user_score }}</span>
+          </div>
+        </div>
+        
+        <div class="header-actions">
+          <!-- Chat Button -->
+          <div class="chat-button">
+            <a href="/chat" class="chat-link" title="Chat with Players">
+              <i class="fas fa-comments"></i>
+            </a>
+          </div>
+          
+          <!-- Notification Bell -->
+          <div class="notification-bell">
+            <button class="notification-link" id="openNotificationSidebar" title="Notifications">
+              <i class="fas fa-bell"></i>
+              <span class="notification-count" id="notificationCount" style="display: none;">0</span>
+            </button>
+          </div>
+          
+          <button class="theme-toggle" id="themeToggle" aria-label="Toggle theme">
+            <i class="fas fa-moon"></i>
+          </button>
+          
+          <div class="dropdown">
+            <button class="dropdown-toggle">
+              <i class="fas fa-bars"></i>
+            </button>
+            <div class="dropdown-menu">
+              <a href="/scoreboard" class="dropdown-item">
+                <i class="fas fa-trophy"></i> Leaderboard
+              </a>
+              <a href="/scoreboard/teams" class="dropdown-item">
+                <i class="fas fa-users"></i> Team Rankings
+              </a>
+              {% if active_tournament %}
+              <a href="/tournament/leaderboard" class="dropdown-item tournament-item">
+                <i class="fas fa-crown"></i> Tournament
+              </a>
+              {% endif %}
+              <a href="/teams" class="dropdown-item">
+                <i class="fas fa-user-friends"></i> Teams
+              </a>
+              <a href="/chat" class="dropdown-item">
+                <i class="fas fa-comments"></i> Chat
+              </a>
+              <button class="dropdown-item notification-dropdown-item" id="dropdownNotificationBtn">
+                <i class="fas fa-bell"></i> Notifications
+                <span class="notification-count" id="dropdownNotificationCount" style="display: none;">0</span>
+              </button>
+              <a href="/profile" class="dropdown-item">
+                <i class="fas fa-user-circle"></i> My Profile
+              </a>
+              <div class="dropdown-divider"></div>
+              <a href="/logout" class="dropdown-item">
+                <i class="fas fa-sign-out-alt"></i> Logout
+              </a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Notification Sidebar -->
+  <div class="notification-sidebar" id="notificationSidebar">
+    <div class="sidebar-header">
+      <div class="header-content">
+        <h3><i class="fas fa-bell"></i> Notifications</h3>
+        <div class="header-actions">
+          <button id="markAllRead" class="btn-icon" title="Mark all as read">
+            <i class="fas fa-check-double"></i>
+          </button>
+          <button id="refreshNotifications" class="btn-icon" title="Refresh">
+            <i class="fas fa-sync-alt"></i>
+          </button>
+          <button id="closeSidebar" class="btn-icon" title="Close">
+            <i class="fas fa-times"></i>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="sidebar-content">
+      <div class="notifications-list" id="notificationsList">
+        <!-- Notifications will be loaded here dynamically -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Sidebar Overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+  <!-- Play CTF Game Now Banner -->
+  <div class="play-ctf-banner">
+    <div class="play-ctf-content">
+      <div class="play-ctf-info">
+        <h2><i class="fas fa-gamepad"></i> Ready to Play?</h2>
+        <p>Jump into the action and start solving challenges!</p>
+      </div>
+      <div class="play-ctf-actions">
+        <a href="#challenges-section" class="play-ctf-btn primary">
+          <i class="fas fa-rocket"></i>
+          Play My CTF Game Now
+        </a>
+        <button class="play-ctf-btn secondary" onclick="scrollToChallenges()">
+          <i class="fas fa-arrow-down"></i>
+          Browse Challenges
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tournament Banner -->
+  {% if active_tournament %}
+  <div class="tournament-banner" id="tournament-banner">
+    <div class="tournament-content">
+      <div class="tournament-info">
+        <h3><i class="fas fa-crown"></i> {{ active_tournament.name }}</h3>
+        <p>Tournament in progress</p>
+      </div>
+      <div class="tournament-timer" id="tournament-timer">
+        <div class="timer-display">
+          <span id="time-remaining">Loading...</span>
+        </div>
+        <div class="timer-progress">
+          <div class="progress-bar" id="timer-progress-bar"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Stats Cards -->
+    <section class="stats-section">
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-trophy"></i>
+          </div>
+          <div class="stat-content">
+            <h3>{{ total_players }}</h3>
+            <p>Players</p>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-puzzle-piece"></i>
+          </div>
+          <div class="stat-content">
+            <h3>{{ total_challenges }}</h3>
+            <p>Challenges</p>
+          </div>
+        </div>
+        
+        <div class="stat-card">
+          <div class="stat-icon">
+            <i class="fas fa-check-circle"></i>
+          </div>
+          <div class="stat-content">
+            <h3>{{ total_solves }}</h3>
+            <p>Solves</p>
+          </div>
+        </div>
+        
+        {% if user_team %}
+        <div class="stat-card team-card">
+          <div class="stat-icon">
+            <i class="fas fa-users"></i>
+          </div>
+          <div class="stat-content">
+            <h3>{{ team_score }}</h3>
+            <p>Team Score</p>
+          </div>
+        </div>
+        {% endif %}
+      </div>
+    </section>
+
+    <!-- Team Info -->
+    {% if user_team %}
+    <section class="team-section">
+      <div class="team-card">
+        <div class="team-header">
+          <h3><i class="fas fa-users"></i> Your Team: {{ user_team.name }}</h3>
+          <a href="{{ url_for('teams') }}" class="team-manage-btn">
+            <i class="fas fa-cog"></i> Manage
+          </a>
+        </div>
+        <div class="team-stats">
+          <div class="team-stat">
+            <span class="stat-label">Team Score</span>
+            <span class="stat-value">{{ team_score }}</span>
+          </div>
+          <div class="team-stat">
+            <span class="stat-label">Your Contribution</span>
+            <span class="stat-value">{{ user_score }}</span>
+          </div>
+        </div>
+      </div>
+    </section>
+    {% else %}
+    <section class="team-section">
+      <div class="team-card empty-team">
+        <div class="team-header">
+          <h3><i class="fas fa-user-plus"></i> Join a Team</h3>
+        </div>
+        <p>Collaborate with others to solve challenges together!</p>
+        <a href="{{ url_for('teams') }}" class="team-join-btn">
+          <i class="fas fa-plus"></i> Create or Join Team
+        </a>
+      </div>
+    </section>
+    {% endif %}
+
+    <!-- Challenge Filters -->
+    <section class="filters-section">
+      <div class="filters-container">
+        <div class="filter-group">
+          <label for="difficultyFilter">Difficulty:</label>
+          <select id="difficultyFilter" class="filter-select">
+            <option value="">All Difficulties</option>
+            <option value="easy">Easy</option>
+            <option value="medium">Medium</option>
+            <option value="hard">Hard</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="categoryFilter">Category:</label>
+          <select id="categoryFilter" class="filter-select">
+            <option value="">All Categories</option>
+            <option value="web">Web</option>
+            <option value="crypto">Crypto</option>
+            <option value="forensics">Forensics</option>
+            <option value="reverse">Reverse</option>
+            <option value="pwn">Pwn</option>
+            <option value="misc">Misc</option>
+          </select>
+        </div>
+        
+        <div class="filter-group">
+          <label for="statusFilter">Status:</label>
+          <select id="statusFilter" class="filter-select">
+            <option value="">All Challenges</option>
+            <option value="unsolved">Unsolved</option>
+            <option value="solved">Solved</option>
+          </select>
+        </div>
+      </div>
+    </section>
+
+    
+
+    <!-- Challenges -->
+    <section class="challenges-section" id="challenges-section">
+      <div class="section-header">
+        <h2>Available Challenges</h2>
+        <div class="challenge-count">
+          <span id="challengeCount">{{ challenges|length }}</span> challenges
+        </div>
+      </div>
+      
+      <div class="challenges-grid" id="challengesGrid">
+        {% for challenge in challenges %}
+        <div class="challenge-card" 
+             data-difficulty="{{ challenge.difficulty }}" 
+             data-category="{{ challenge.category }}"
+             data-solved="{{ 'true' if challenge.id in solved_ids else 'false' }}">
+          <div class="challenge-header">
+            <div class="challenge-title">
+              <h3>{{ challenge.title }}</h3>
+              <div class="challenge-badges">
+                <span class="badge difficulty-{{ challenge.difficulty }}">{{ challenge.difficulty }}</span>
+                <span class="badge category-{{ challenge.category }}">{{ challenge.category }}</span>
+                {% if challenge.id in solved_ids %}
+                <span class="badge solved"><i class="fas fa-check"></i> Solved</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="challenge-points">
+              <span class="points">{{ challenge.points }}</span>
+              <span class="points-label">pts</span>
+            </div>
+          </div>
+          
+          <div class="challenge-description">
+            <p>{{ challenge.description }}</p>
+            {% if challenge.closes_at %}
+            <div class="timer" data-end="{{ challenge.closes_at.isoformat() }}">
+              <i class="fas fa-hourglass-half"></i>
+              <span class="time-left">--:--:--</span>
+            </div>
+            {% endif %}
+          </div>
+          
+          {% if challenge.id not in solved_ids %}
+          <div class="challenge-actions">
+            <a href="{{ url_for('challenge_enhanced', challenge_id=challenge.id) }}" class="action-btn primary">
+              <i class="fas fa-play"></i>
+              Solve Challenge
+            </a>
+          </div>
+          {% else %}
+          <div class="challenge-solved">
+            <i class="fas fa-check-circle"></i>
+            <span>Challenge Completed!</span>
+          </div>
+          {% endif %}
+          
+          <div class="challenge-actions">
+            <a href="{{ url_for('challenge_enhanced', challenge_id=challenge.id) }}" class="action-btn">
+              <i class="fas fa-eye"></i> View Challenge
+            </a>
+          </div>
+
+          {% set ch_hints = challenge.hints|sort(attribute='display_order') %}
+          {% if ch_hints %}
+          <div class="hints-box">
+            <div class="hints-header"><i class="fas fa-lightbulb"></i> Hints</div>
+            <div class="hints-list">
+              {% for hint in ch_hints %}
+                {% set revealed = hint.id in revealed_hint_ids %}
+                <div class="hint-item">
+                  {% if revealed %}
+                    <span class="hint-revealed"><i class="fas fa-unlock"></i> {{ hint.text }}</span>
+                  {% else %}
+                    <form method="POST" action="{{ url_for('reveal_hint', hint_id=hint.id) }}">
+                      <button type="submit" class="hint-reveal-btn">
+                        <i class="fas fa-key"></i> Reveal ({{ hint.cost }} pts)
+                      </button>
+                    </form>
+                  {% endif %}
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+          {% endif %}
+
+
+        </div>
+        {% endfor %}
+      </div>
+      
+      <div class="no-challenges" id="noChallenges" style="display: none;">
+        <div class="empty-state">
+          <i class="fas fa-search"></i>
+          <h3>No challenges found</h3>
+          <p>Try adjusting your filters</p>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Real-time Leaderboard Sidebar -->
+  <aside class="leaderboard-sidebar" id="leaderboardSidebar">
+    <div class="sidebar-header">
+      <h3><i class="fas fa-trophy"></i> Live Leaderboard</h3>
+      <button class="sidebar-toggle" id="sidebarToggle">
+        <i class="fas fa-chevron-left"></i>
+      </button>
+    </div>
+    
+    <div class="leaderboard-content">
+        <div class="filter-row" style="display:flex; gap:8px; padding: 0 12px 8px 12px;">
+          <select id="lbCategory" class="filter-select" style="flex:1;">
+            <option value="">All Categories</option>
+            <option value="web">Web</option>
+            <option value="crypto">Crypto</option>
+            <option value="forensics">Forensics</option>
+            <option value="reverse">Reverse</option>
+            <option value="pwn">Pwn</option>
+            <option value="misc">Misc</option>
+          </select>
+          <select id="lbWindow" class="filter-select" style="flex:1;">
+            <option value="">All Time</option>
+            <option value="day">Today</option>
+            <option value="week">This Week</option>
+          </select>
+        </div>
+      <div class="leaderboard-tabs">
+        <button class="tab-btn active" data-tab="individual">
+          <i class="fas fa-user"></i> Individual
+        </button>
+        <button class="tab-btn" data-tab="teams">
+          <i class="fas fa-users"></i> Teams
+        </button>
+      </div>
+      
+      <div class="tab-content active" id="individualTab">
+        <div class="leaderboard-list" id="individualLeaderboard">
+          <!-- Individual leaderboard will be populated via WebSocket -->
+        </div>
+      </div>
+      
+      <div class="tab-content" id="teamsTab">
+        <div class="leaderboard-list" id="teamsLeaderboard">
+          <!-- Team leaderboard will be populated via WebSocket -->
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <!-- Flash Messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="flash-messages" id="flashMessages">
+        {% for category, message in messages %}
+          <div class="flash-message flash-{{ category }}">
+            <i class="fas fa-{% if category == 'success' %}check-circle{% elif category == 'error' %}exclamation-circle{% else %}info-circle{% endif %}"></i>
+            <span>{{ message }}</span>
+            <button class="flash-close" onclick="this.parentElement.remove()">
+              <i class="fas fa-times"></i>
+            </button>
+          </div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% include '_contact_footer.html' %}
+
+  <!-- Scripts -->
+  <script src="{{ url_for('static', filename='dashboard_enhanced.js') }}"></script>
+</body>
+</html>

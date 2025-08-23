@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notifications - CTF Challenge</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='notifications.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <!-- Notification Sidebar -->
+    <div class="notification-sidebar" id="notificationSidebar">
+        <div class="sidebar-header">
+            <div class="header-content">
+                <h3><i class="fas fa-bell"></i> Notifications</h3>
+                <div class="header-actions">
+                    <button id="markAllRead" class="btn-icon" title="Mark all as read">
+                        <i class="fas fa-check-double"></i>
+                    </button>
+                    <button id="refreshNotifications" class="btn-icon" title="Refresh">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                    <button id="closeSidebar" class="btn-icon" title="Close">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="sidebar-content">
+            {% if notifications %}
+                <div class="notifications-list">
+                    {% for notification in notifications %}
+                    <div class="notification-item {% if not notification.read %}unread{% endif %} priority-{{ notification.priority }}" 
+                         data-id="{{ notification.id }}">
+                        <div class="notification-icon">
+                            {% if notification.notification_type == 'challenge_solved' %}
+                                <i class="fas fa-trophy"></i>
+                            {% elif notification.notification_type == 'team_update' %}
+                                <i class="fas fa-users"></i>
+                            {% elif notification.notification_type == 'hint_used' %}
+                                <i class="fas fa-lightbulb"></i>
+                            {% elif notification.notification_type == 'achievement' %}
+                                <i class="fas fa-medal"></i>
+                            {% elif notification.notification_type == 'score_change' %}
+                                <i class="fas fa-chart-line"></i>
+                            {% else %}
+                                <i class="fas fa-bell"></i>
+                            {% endif %}
+                        </div>
+                        <div class="notification-content">
+                            <div class="notification-header">
+                                <h4 class="notification-title">{{ notification.title }}</h4>
+                                <span class="notification-time">
+                                    {% if notification.created_at %}
+                                        {{ notification.created_at.strftime('%H:%M') }}
+                                    {% else %}
+                                        --
+                                    {% endif %}
+                                </span>
+                            </div>
+                            <p class="notification-message">{{ notification.message }}</p>
+                            <div class="notification-meta">
+                                <span class="notification-type">{{ notification.notification_type.replace('_', ' ').title() }}</span>
+                                {% if notification.priority != 'normal' %}
+                                    <span class="priority-badge priority-{{ notification.priority }}">
+                                        {{ notification.priority.title() }}
+                                    </span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <div class="notification-actions">
+                            {% if not notification.read %}
+                                <button class="btn-mark-read" data-id="{{ notification.id }}" title="Mark as read">
+                                    <i class="fas fa-check"></i>
+                                </button>
+                            {% endif %}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="no-notifications">
+                    <div class="empty-state">
+                        <i class="fas fa-bell-slash"></i>
+                        <h4>All caught up!</h4>
+                        <p>No new notifications</p>
+                    </div>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <!-- Overlay to close sidebar when clicking outside -->
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <!-- Back to Dashboard Button -->
+    <div class="back-button">
+        <a href="{{ url_for('dashboard_enhanced') }}" class="btn-back">
+            <i class="fas fa-arrow-left"></i> Back to Dashboard
+        </a>
+    </div>
+
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+    <script src="{{ url_for('static', filename='notifications.js') }}"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+</body>
+</html>

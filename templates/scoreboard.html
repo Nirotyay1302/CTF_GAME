@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>CTF Scoreboard - HUNTING-CTF</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+    <style>
+        body {
+            background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('{{ url_for("static", filename="cyber_bg1.jpg") }}') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            padding: 0;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--bg-panel);
+            border-radius: 20px;
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            padding: 0 0 24px 0;
+            border: 1px solid var(--border-color);
+        }
+        .header {
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            color: var(--button-text);
+            padding: 30px 10px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 10px; }
+        .header p { font-size: 1.1rem; opacity: 0.9; }
+        .scoreboard-container { padding: 30px 10px; }
+        .navigation { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 30px; gap: 10px; }
+        .nav-button {
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            color: var(--button-text);
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+            font-size: 1rem;
+        }
+        .nav-button:hover {
+            background: linear-gradient(135deg, var(--accent-secondary) 0%, var(--accent-primary) 100%);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+            gap: 16px;
+            margin-top: 18px; margin-bottom: 36px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            padding: 18px 8px;
+            border-radius: 15px;
+            text-align: center;
+            box-shadow: var(--shadow-md);
+            border: 1px solid var(--border-color);
+        }
+        .stat-number { font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); margin-bottom: 5px; }
+        .stat-label { color: var(--text-secondary); font-size: 0.95rem; }
+        .scoreboard-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            border: 1.5px solid var(--border-color);
+            margin-top: 18px;
+        }
+        .scoreboard-table th, .scoreboard-table td {
+            padding: 16px 8px;
+            font-size: 1rem;
+        }
+        .scoreboard-table th {
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            color: var(--button-text);
+            font-weight: 600;
+        }
+        .scoreboard-table td { border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
+        .scoreboard-table tr:hover { background-color: var(--bg-secondary); transition: all 0.3s ease; }
+        .scoreboard-table tr.current-user { background: var(--bg-tertiary) !important; font-weight: 700; }
+        .scoreboard-table tr.top1 td.rank { color: #ffd700; }
+        .scoreboard-table tr.top2 td.rank { color: #c0c0c0; }
+        .scoreboard-table tr.top3 td.rank { color: #cd7f32; }
+        .rank, .solves, .score, .scoreboard-table th:nth-child(3), .scoreboard-table th:nth-child(4), .scoreboard-table th:nth-child(5), .scoreboard-table td:last-child { text-align: center; }
+        .username { font-weight: 600; color: var(--text-primary); }
+        .score { font-weight: 700; color: var(--accent-success); }
+        .solves { color: var(--text-secondary); }
+        .medals { display: flex; justify-content: center; gap: 5px; }
+        .medal { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; font-size: 0.9rem; }
+        .gold { background: linear-gradient(45deg, #ffd700, #ffed4e); }
+        .silver { background: linear-gradient(45deg, #c0c0c0, #e5e5e5); }
+        .bronze { background: linear-gradient(45deg, #cd7f32, #daa520); }
+        
+        /* Theme toggle positioning */
+        .theme-toggle-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        @media (max-width: 768px) {
+            .container { margin: 10px; }
+            .header h1 { font-size: 1.8rem; }
+            .navigation { flex-direction: column; }
+            .nav-button { width: 100%; text-align: center; }
+            .stats { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Toggle -->
+    <div class="theme-toggle-container">
+        <button class="theme-toggle" aria-label="Toggle theme">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-trophy"></i> CTF Scoreboard</h1>
+            <p>Current rankings and statistics</p>
+        </div>
+        
+        <div class="scoreboard-container">
+            <div class="navigation">
+                <a href="/dashboard" class="nav-button">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+                <a href="/scoreboard/teams" class="nav-button">
+                    <i class="fas fa-users"></i> Team Rankings
+                </a>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-number">{{ total_users }}</div>
+                    <div class="stat-label">Total Users</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ total_challenges }}</div>
+                    <div class="stat-label">Total Challenges</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ total_solves }}</div>
+                    <div class="stat-label">Total Solves</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">{{ avg_score|round(1) }}</div>
+                    <div class="stat-label">Average Score</div>
+                </div>
+            </div>
+            
+            <table class="scoreboard-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Username</th>
+                        <th>Solves</th>
+                        <th>Score</th>
+                        <th>Medals</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for user in users %}
+                    <tr class="{% if user.username == current_user.username %}current-user{% endif %} {% if loop.index <= 3 %}top{{ loop.index }}{% endif %}">
+                        <td class="rank">{{ loop.index }}</td>
+                        <td class="username">{{ user.username }}</td>
+                        <td class="solves">{{ user.solve_count }}</td>
+                        <td class="score">{{ user.score }}</td>
+                        <td class="medals">
+                            {% if loop.index == 1 %}
+                                <div class="medal gold">🥇</div>
+                            {% elif loop.index == 2 %}
+                                <div class="medal silver">🥈</div>
+                            {% elif loop.index == 3 %}
+                                <div class="medal bronze">🥉</div>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="5" style="padding:20px; color:var(--text-secondary); text-align: center;">No users found.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% include '_contact_footer.html' %}
+</body>
+</html>

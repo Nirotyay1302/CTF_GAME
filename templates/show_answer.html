@@ -1,0 +1,17 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Show Answer - {{ challenge.title }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="container">
+        <h2>Answer for: {{ challenge.title }}</h2>
+        <p><strong>Correct Flag:</strong> <span class="text-success">{{ answer }}</span></p>
+        <a class="button" href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+    </div>
+  {% include '_contact_footer.html' %}
+</body>
+</html>

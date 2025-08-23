@@ -1,0 +1,554 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ challenge.title }} - HUNTING-CTF</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='dashboard_enhanced.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+    <style>
+        .challenge-container {
+            max-width: 800px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .challenge-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 1px solid var(--border-color);
+        }
+        
+        .challenge-title {
+            flex: 1;
+        }
+        
+        .challenge-title h1 {
+            margin: 0 0 0.5rem 0;
+            color: var(--text-primary);
+            font-size: 1.8rem;
+            font-weight: 600;
+        }
+        
+        .challenge-badges {
+            display: flex;
+            gap: 0.5rem;
+            flex-wrap: wrap;
+        }
+        
+        .badge {
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            text-transform: uppercase;
+        }
+        
+        .badge.difficulty-easy { background: #22c55e; color: white; }
+        .badge.difficulty-medium { background: #f59e0b; color: white; }
+        .badge.difficulty-hard { background: #ef4444; color: white; }
+        .badge.category-web { background: #3b82f6; color: white; }
+        .badge.category-crypto { background: #8b5cf6; color: white; }
+        .badge.category-forensics { background: #06b6d4; color: white; }
+        .badge.category-reverse { background: #f97316; color: white; }
+        .badge.category-pwn { background: #dc2626; color: white; }
+        .badge.category-misc { background: #6b7280; color: white; }
+        
+        .challenge-points {
+            text-align: center;
+            padding: 1rem;
+            background: var(--accent-bg);
+            border-radius: 8px;
+            min-width: 80px;
+        }
+        
+        .points {
+            display: block;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--accent-color);
+        }
+        
+        .points-label {
+            font-size: 0.75rem;
+            color: var(--text-secondary);
+            text-transform: uppercase;
+        }
+        
+        .challenge-description {
+            margin-bottom: 2rem;
+            padding: 1.5rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border-left: 4px solid var(--accent-color);
+        }
+        
+        .challenge-description p {
+            margin: 0;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+        
+        .flag-section {
+            margin-bottom: 2rem;
+        }
+        
+        .flag-form {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        
+        .flag-input {
+            flex: 1;
+            padding: 0.75rem 1rem;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            background: var(--input-bg);
+            color: var(--text-primary);
+            font-size: 1rem;
+            transition: border-color 0.2s;
+        }
+        
+        .flag-input:focus {
+            outline: none;
+            border-color: var(--accent-color);
+        }
+        
+        .flag-submit {
+            padding: 0.75rem 1.5rem;
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .flag-submit:hover {
+            background: var(--accent-hover);
+        }
+        
+        .flag-submit:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+        }
+        
+        .result-message {
+            padding: 1rem;
+            border-radius: 8px;
+            margin-bottom: 1rem;
+            font-weight: 500;
+        }
+        
+        .result-message.success {
+            background: #dcfce7;
+            color: #166534;
+            border: 1px solid #bbf7d0;
+        }
+        
+        .result-message.error {
+            background: #fef2f2;
+            color: #dc2626;
+            border: 1px solid #fecaca;
+        }
+        
+        .result-message.info {
+            background: #dbeafe;
+            color: #1e40af;
+            border: 1px solid #bfdbfe;
+        }
+        
+        .action-buttons {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        
+        .action-btn {
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+        
+        .action-btn.primary {
+            background: var(--accent-color);
+            color: white;
+        }
+        
+        .action-btn.primary:hover {
+            background: var(--accent-hover);
+        }
+        
+        .action-btn.secondary {
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-color);
+        }
+        
+        .action-btn.secondary:hover {
+            background: var(--border-color);
+        }
+        
+        .action-btn.danger {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .action-btn.danger:hover {
+            background: #dc2626;
+        }
+        
+        .hints-section {
+            margin-bottom: 2rem;
+        }
+        
+        .hints-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        
+        .hints-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+        
+        .hint-item {
+            padding: 1rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .hint-revealed {
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        
+        .hint-reveal-btn {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+        
+        .hint-reveal-btn:hover {
+            background: var(--accent-hover);
+        }
+        
+        .hint-reveal-btn:disabled {
+            background: var(--text-secondary);
+            cursor: not-allowed;
+        }
+        
+        .answer-section {
+            margin-top: 2rem;
+            padding: 1.5rem;
+            background: var(--bg-secondary);
+            border-radius: 8px;
+            border: 2px solid var(--accent-color);
+        }
+        
+        .answer-header {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+            color: var(--accent-color);
+            font-weight: 600;
+        }
+        
+        .answer-text {
+            font-family: 'Courier New', monospace;
+            background: var(--card-bg);
+            padding: 1rem;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            font-size: 1.1rem;
+            word-break: break-all;
+        }
+        
+        .back-link {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            text-decoration: none;
+            font-weight: 500;
+            transition: color 0.2s;
+        }
+        
+        .back-link:hover {
+            color: var(--accent-color);
+        }
+        
+        .hidden {
+            display: none !important;
+        }
+        
+        .loading {
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        
+        @media (max-width: 768px) {
+            .challenge-container {
+                margin: 1rem;
+                padding: 1rem;
+            }
+            
+            .challenge-header {
+                flex-direction: column;
+                gap: 1rem;
+            }
+            
+            .action-buttons {
+                flex-direction: column;
+            }
+            
+            .flag-form {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Toggle -->
+    <div class="theme-toggle-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
+        <button class="theme-toggle" aria-label="Toggle theme">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+
+    {% include '_contact_footer.html' %}
+
+    <div class="challenge-container">
+        <!-- Challenge Header -->
+        <div class="challenge-header">
+            <div class="challenge-title">
+                <h1>{{ challenge.title }}</h1>
+                <div class="challenge-badges">
+                    <span class="badge difficulty-{{ challenge.difficulty }}">{{ challenge.difficulty }}</span>
+                    <span class="badge category-{{ challenge.category }}">{{ challenge.category }}</span>
+                    {% if challenge.id in solved_ids %}
+                    <span class="badge solved" style="background: #22c55e; color: white;">
+                        <i class="fas fa-check"></i> Solved
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+            <div class="challenge-points">
+                <span class="points">{{ challenge.points }}</span>
+                <span class="points-label">pts</span>
+            </div>
+        </div>
+        
+        <!-- Challenge Description -->
+        <div class="challenge-description">
+            <p>{{ challenge.description }}</p>
+        </div>
+        
+        <!-- Result Messages -->
+        {% if message %}
+        <div class="result-message {{ 'success' if 'Correct' in message else 'error' if 'Incorrect' in message else 'info' }}">
+            {{ message }}
+        </div>
+        {% endif %}
+        
+        <!-- Flag Submission Section -->
+        {% if challenge.id not in solved_ids %}
+        <div class="flag-section">
+            <form method="POST" action="{{ url_for('submit_flag', challenge_id=challenge.id) }}" class="flag-form" id="flagForm">
+                <input type="text" name="flag" placeholder="Enter flag (e.g., flag{...})" required class="flag-input" id="flagInput">
+                <button type="submit" class="flag-submit" id="flagSubmit">
+                    <i class="fas fa-paper-plane"></i>
+                    Submit
+                </button>
+            </form>
+        </div>
+        {% else %}
+        <div class="result-message success">
+            <i class="fas fa-check-circle"></i>
+            Challenge Completed! You earned {{ challenge.points }} points.
+        </div>
+        {% endif %}
+        
+        <!-- Action Buttons -->
+        <div class="action-buttons">
+            {% if challenge.id not in solved_ids %}
+            <button class="action-btn secondary" id="tryAgainBtn" onclick="resetForm()">
+                <i class="fas fa-redo"></i>
+                Try Again
+            </button>
+            <button class="action-btn primary" id="showAnswerBtn" onclick="showAnswer()" style="display: none;">
+                <i class="fas fa-eye"></i>
+                Show Answer
+            </button>
+            {% endif %}
+            
+            <a href="{{ url_for('dashboard') }}" class="action-btn secondary">
+                <i class="fas fa-arrow-left"></i>
+                Back to Dashboard
+            </a>
+        </div>
+        
+        <!-- Hints Section -->
+        {% set ch_hints = challenge.hints|sort(attribute='display_order') %}
+        {% if ch_hints %}
+        <div class="hints-section">
+            <div class="hints-header">
+                <i class="fas fa-lightbulb"></i>
+                Hints
+            </div>
+            <div class="hints-list">
+                {% for hint in ch_hints %}
+                {% set revealed = hint.id in revealed_hint_ids %}
+                <div class="hint-item">
+                    {% if revealed %}
+                    <div class="hint-revealed">
+                        <i class="fas fa-unlock"></i>
+                        {{ hint.text }}
+                    </div>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('reveal_hint', hint_id=hint.id) }}" style="margin: 0;">
+                        <button type="submit" class="hint-reveal-btn">
+                            <i class="fas fa-key"></i>
+                            Reveal Hint ({{ hint.cost }} pts)
+                        </button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Answer Section (Hidden by default) -->
+        <div class="answer-section hidden" id="answerSection">
+            <div class="answer-header">
+                <i class="fas fa-eye"></i>
+                Correct Answer
+            </div>
+            <div class="answer-text" id="answerText">
+                Loading...
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        let wrongAttempts = 0;
+        const maxWrongAttempts = 3;
+        
+        // Handle form submission
+        document.getElementById('flagForm')?.addEventListener('submit', function(e) {
+            const submitBtn = document.getElementById('flagSubmit');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+        });
+        
+        // Reset form function
+        function resetForm() {
+            const form = document.getElementById('flagForm');
+            const input = document.getElementById('flagInput');
+            const submitBtn = document.getElementById('flagSubmit');
+            const tryAgainBtn = document.getElementById('tryAgainBtn');
+            const showAnswerBtn = document.getElementById('showAnswerBtn');
+            
+            if (form) {
+                form.reset();
+                input.focus();
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit';
+            }
+            
+            // Hide show answer button if it was shown
+            if (showAnswerBtn) {
+                showAnswerBtn.style.display = 'none';
+            }
+            
+            // Hide answer section
+            const answerSection = document.getElementById('answerSection');
+            if (answerSection) {
+                answerSection.classList.add('hidden');
+            }
+        }
+        
+        // Show answer function
+        function showAnswer() {
+            const answerSection = document.getElementById('answerSection');
+            const answerText = document.getElementById('answerText');
+            const showAnswerBtn = document.getElementById('showAnswerBtn');
+            
+            if (answerSection && answerText) {
+                // Show loading state
+                answerSection.classList.remove('hidden');
+                answerText.textContent = 'Loading...';
+                showAnswerBtn.disabled = true;
+                showAnswerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+                
+                // Fetch the answer
+                fetch(`{{ url_for('show_answer', challenge_id=challenge.id) }}?format=json`)
+                    .then(response => response.json())
+                    .then(data => {
+                        if (data.answer) {
+                            answerText.textContent = data.answer;
+                        } else {
+                            answerText.textContent = 'Answer not available';
+                        }
+                        
+                        // Re-enable button
+                        showAnswerBtn.disabled = false;
+                        showAnswerBtn.innerHTML = '<i class="fas fa-eye"></i> Show Answer';
+                    })
+                    .catch(error => {
+                        console.error('Error fetching answer:', error);
+                        answerText.textContent = 'Error loading answer';
+                        showAnswerBtn.disabled = false;
+                        showAnswerBtn.innerHTML = '<i class="fas fa-eye"></i> Show Answer';
+                    });
+            }
+        }
+        
+        // Check if there was a wrong attempt (from URL parameters or flash messages)
+        document.addEventListener('DOMContentLoaded', function() {
+            const messageElement = document.querySelector('.result-message.error');
+            const showAnswerBtn = document.getElementById('showAnswerBtn');
+            
+            if (messageElement && showAnswerBtn) {
+                // Show the "Show Answer" button after wrong attempt
+                showAnswerBtn.style.display = 'inline-flex';
+            }
+        });
+    </script>
+</body>
+</html>

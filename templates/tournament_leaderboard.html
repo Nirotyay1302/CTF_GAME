@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Leaderboard - HUNTING-CTF</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+    <style>
+        body {
+            background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('{{ url_for("static", filename="cyber_bg1.jpg") }}') no-repeat center center fixed;
+            background-size: cover;
+            min-height: 100vh;
+            padding: 0;
+            font-family: 'Inter', sans-serif;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: var(--bg-panel);
+            border-radius: 20px;
+            box-shadow: var(--shadow-xl);
+            overflow: hidden;
+            padding: 0 0 24px 0;
+            border: 1px solid var(--border-color);
+        }
+        .header {
+            background: linear-gradient(135deg, var(--accent-success) 0%, #059669 100%);
+            color: var(--button-text);
+            padding: 30px 10px;
+            text-align: center;
+        }
+        .header h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 10px; }
+        .header p { font-size: 1.1rem; opacity: 0.9; }
+        .content-container { padding: 30px 10px; }
+        .navigation { 
+            display: flex; 
+            flex-wrap: wrap; 
+            justify-content: space-between; 
+            align-items: center; 
+            margin-bottom: 30px; 
+            gap: 10px; 
+        }
+        .nav-button {
+            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
+            color: var(--button-text);
+            padding: 12px 25px;
+            border: none;
+            border-radius: 25px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            display: inline-block;
+            font-size: 1rem;
+        }
+        .nav-button:hover {
+            background: linear-gradient(135deg, var(--accent-secondary) 0%, var(--accent-primary) 100%);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+        .tournament-info {
+            background: var(--bg-card);
+            border-radius: 15px;
+            padding: 20px;
+            margin-bottom: 30px;
+            border: 1px solid var(--accent-success);
+            box-shadow: var(--shadow-md);
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+        }
+        .tournament-info h3 {
+            color: var(--accent-success);
+            margin-bottom: 10px;
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+        .tournament-info p {
+            color: var(--text-secondary);
+            margin: 0;
+        }
+        .tournament-table {
+            width: 100%;
+            border-collapse: collapse;
+            background: var(--bg-card);
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: var(--shadow-lg);
+            border: 1.5px solid var(--border-color);
+        }
+        .tournament-table th, .tournament-table td {
+            padding: 16px 12px;
+            font-size: 1rem;
+            text-align: left;
+        }
+        .tournament-table th {
+            background: linear-gradient(135deg, var(--accent-success) 0%, #059669 100%);
+            color: var(--button-text);
+            font-weight: 600;
+        }
+        .tournament-table td { 
+            border-bottom: 1px solid var(--border-color); 
+            color: var(--text-primary); 
+        }
+        .tournament-table tr:hover { 
+            background-color: var(--bg-secondary); 
+            transition: all 0.3s ease; 
+        }
+        .rank, .members, .score { text-align: center; }
+        .team-name { font-weight: 600; color: var(--text-primary); }
+        .team-code { 
+            color: var(--accent-info); 
+            font-weight: 600; 
+            font-family: monospace; 
+            font-size: 0.9rem;
+        }
+        .score { font-weight: 700; color: var(--accent-success); }
+        .members { color: var(--text-secondary); }
+        .status {
+            font-weight: 600;
+            text-align: center;
+        }
+        .status.leading {
+            color: var(--accent-warning);
+        }
+        .status.top3 {
+            color: var(--accent-info);
+        }
+        .status.competing {
+            color: var(--text-muted);
+        }
+        
+        /* Theme toggle positioning */
+        .theme-toggle-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+        }
+        
+        @media (max-width: 768px) {
+            .container { margin: 10px; }
+            .header h1 { font-size: 1.8rem; }
+            .navigation { flex-direction: column; }
+            .nav-button { width: 100%; text-align: center; }
+            .tournament-table th, .tournament-table td {
+                padding: 12px 8px;
+                font-size: 0.9rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Theme Toggle -->
+    <div class="theme-toggle-container">
+        <button class="theme-toggle" aria-label="Toggle theme">
+            <i class="fas fa-moon"></i>
+        </button>
+    </div>
+
+    <div class="container">
+        <div class="header">
+            <h1><i class="fas fa-crown"></i> Tournament Leaderboard</h1>
+            <p>Live tournament rankings and standings</p>
+        </div>
+        
+        <div class="content-container">
+            <div class="navigation">
+                <a href="/dashboard" class="nav-button">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </a>
+                <a href="/scoreboard" class="nav-button">
+                    <i class="fas fa-trophy"></i> Individual Rankings
+                </a>
+                <a href="/scoreboard/teams" class="nav-button">
+                    <i class="fas fa-users"></i> Team Rankings
+                </a>
+            </div>
+            
+            <div class="tournament-info">
+                <h3><i class="fas fa-crown"></i> Active Tournament: {{ tournament.name }}</h3>
+                <p><strong>End Time:</strong> {{ tournament.end_time.strftime('%Y-%m-%d %H:%M:%S') }}</p>
+                <p><strong>Status:</strong> Tournament is currently active - solve challenges to climb the leaderboard!</p>
+            </div>
+            
+            <table class="tournament-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Team</th>
+                        <th>Code</th>
+                        <th>Members</th>
+                        <th>Score</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for team in teams %}
+                    <tr>
+                        <td class="rank">
+                            {% if loop.index == 1 %}🥇
+                            {% elif loop.index == 2 %}🥈
+                            {% elif loop.index == 3 %}🥉
+                            {% else %}{{ loop.index }}
+                            {% endif %}
+                        </td>
+                        <td class="team-name">{{ team.name }}</td>
+                        <td class="team-code">{{ team.team_code }}</td>
+                        <td class="members">{{ team.members }}</td>
+                        <td class="score">{{ team.score }}</td>
+                        <td class="status {% if loop.index == 1 %}leading{% elif loop.index <= 3 %}top3{% else %}competing{% endif %}">
+                            {% if loop.index == 1 %}
+                                🏆 LEADING
+                            {% elif loop.index <= 3 %}
+                                🏅 TOP 3
+                            {% else %}
+                                Competing
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% else %}
+                    <tr>
+                        <td colspan="6" style="padding:20px; color:var(--text-secondary); text-align: center;">No teams participating yet.</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+    {% include '_contact_footer.html' %}
+</body>
+</html>
