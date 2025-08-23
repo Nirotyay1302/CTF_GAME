@@ -608,45 +608,120 @@ def dashboard_enhanced():
 
 @app.route('/challenge/<int:challenge_id>')
 def challenge_enhanced(challenge_id):
-    """Enhanced challenge view with improved UI and hint system"""
+    """Optimized challenge view with fast loading and caching"""
     if 'user_id' not in session:
         return redirect(url_for('login'))
+
+    user_id = session['user_id']
+
+    # Use caching for faster loading
+    cache_key = f"challenge_data_{challenge_id}_{user_id}"
+
+    def generate_challenge_data():
+        # Single optimized query to get user and check admin role
+        user = db.session.query(User.id, User.role, User.username, User.profile_picture).filter_by(id=user_id).first()
+        if not user:
+            return None
+
+        if user.role == 'admin':
+            return {'error': 'admin_not_allowed'}
+
+        # Get challenge with optimized query
+        challenge = db.session.query(
+            Challenge.id,
+            Challenge.title,
+            Challenge.description,
+            Challenge.points,
+            Challenge.category,
+            Challenge.difficulty,
+            Challenge.opens_at,
+            Challenge.closes_at
+        ).filter_by(id=challenge_id).first()
+
+        if not challenge:
+            return {'error': 'challenge_not_found'}
+
+        # Time window guard
+        now = datetime.utcnow()
+        if (challenge.opens_at and now < challenge.opens_at) or (challenge.closes_at and now >= challenge.closes_at):
+            return {'error': 'challenge_not_available'}
+
+        # Optimized query to check if user solved this challenge
+        is_solved = db.session.query(Solve.id).filter_by(
+            user_id=user_id,
+            challenge_id=challenge_id
+        ).first() is not None
+
+        # Get revealed hints for this user (optimized query)
+        revealed_hint_ids = set(
+            h.hint_id for h in db.session.query(UserHint.hint_id).filter_by(user_id=user_id).all()
+        )
+
+        # Get challenge hints
+        hints = db.session.query(
+            Hint.id,
+            Hint.text,
+            Hint.cost,
+            Hint.display_order
+        ).filter_by(challenge_id=challenge_id).order_by(Hint.display_order).all()
+
+        return {
+            'user': user,
+            'challenge': challenge,
+            'is_solved': is_solved,
+            'revealed_hint_ids': revealed_hint_ids,
+            'hints': hints
+        }
+
+    # Get cached data (30 second cache for challenge data)
+    data = get_from_cache(cache_key, generate_challenge_data, timeout=30)
+
+    if not data:
+        flash('Error loading challenge data.', 'error')
+        return redirect(url_for('dashboard'))
+
+    if 'error' in data:
+        if data['error'] == 'admin_not_allowed':
+            flash("Admins cannot play the game.", "error")
+            return redirect(url_for('admin_panel'))
+        elif data['error'] == 'challenge_not_found':
+            flash('Challenge not found.', 'danger')
+            return redirect(url_for('dashboard'))
+        elif data['error'] == 'challenge_not_available':
+            flash('Challenge is not currently available.', 'error')
+            return redirect(url_for('dashboard'))
+
+    # Get message from flash or session
+    message = request.args.get('message')
+
+    return render_template(
+        'challenge_enhanced.html',
+        challenge=data['challenge'],
+        is_solved=data['is_solved'],
+        revealed_hint_ids=data['revealed_hint_ids'],
+        hints=data['hints'],
+        message=message,
+        user=data['user']
+    )
+
+@app.route('/challenge/<int:challenge_id>/fast')
+def challenge_fast(challenge_id):
+    """Ultra-fast challenge page with AJAX loading"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
     user = db.session.get(User, session['user_id'])
     if user.role == 'admin':
         flash("Admins cannot play the game.", "error")
         return redirect(url_for('admin_panel'))
-    
-    challenge = db.session.get(Challenge, challenge_id)
+
+    # Just get basic challenge info for initial render
+    challenge = db.session.query(Challenge.id, Challenge.title).filter_by(id=challenge_id).first()
     if not challenge:
         flash('Challenge not found.', 'danger')
         return redirect(url_for('dashboard'))
-    
-    # Time window guard
-    now = datetime.utcnow()
-    if (challenge.opens_at and now < challenge.opens_at) or (challenge.closes_at and now >= challenge.closes_at):
-        flash('Challenge is not currently available.', 'error')
-        return redirect(url_for('dashboard'))
-    
-    # Check if user has solved this challenge
-    solved_ids = {sub.challenge_id for sub in user.submissions if sub.correct}
-    is_solved = challenge.id in solved_ids
-    
-    # Get revealed hints for this user
-    revealed_hint_ids = set(h.hint_id for h in UserHint.query.filter_by(user_id=session['user_id']).all())
-    
-    # Get message from flash or session
-    message = None
-    if request.args.get('message'):
-        message = request.args.get('message')
-    
-    return render_template(
-        'challenge_enhanced.html',
-        challenge=challenge,
-        solved_ids=solved_ids,
-        revealed_hint_ids=revealed_hint_ids,
-        message=message,
-        user=user
-    )
+
+    return render_template('challenge_fast.html', challenge=challenge)
 
 @app.route('/submit/<int:challenge_id>', methods=['POST'])
 def submit_flag(challenge_id):
@@ -2770,11 +2845,16 @@ def profile():
 
 @app.route('/profile/picture/<filename>')
 def profile_picture(filename):
-    """Serve profile pictures with proper headers and error handling"""
+    """Serve profile pictures with enhanced error handling and fallbacks"""
     try:
         # Create upload directory if it doesn't exist
         upload_dir = os.path.join(app.instance_path, 'profile_pictures')
         os.makedirs(upload_dir, exist_ok=True)
+
+        # Sanitize filename
+        if not filename or '..' in filename or '/' in filename:
+            print(f"Invalid filename: {filename}")
+            return redirect(url_for('static', filename='images/default-avatar.svg'))
 
         filepath = os.path.join(upload_dir, filename)
 
@@ -2782,26 +2862,34 @@ def profile_picture(filename):
         if not os.path.exists(filepath):
             print(f"Profile picture not found: {filepath}")
             # Return a default avatar instead of 404
-            return redirect(url_for('static', filename='images/default-avatar.png'))
+            return redirect(url_for('static', filename='images/default-avatar.svg'))
 
         # Verify the file is in the correct directory (security)
-        if not os.path.commonpath([upload_dir, filepath]) == upload_dir:
-            print(f"Security violation: file outside upload directory")
-            return '', 404
+        try:
+            if not os.path.commonpath([upload_dir, filepath]) == upload_dir:
+                print(f"Security violation: file outside upload directory")
+                return redirect(url_for('static', filename='images/default-avatar.svg'))
+        except ValueError:
+            print(f"Path security check failed for: {filepath}")
+            return redirect(url_for('static', filename='images/default-avatar.svg'))
+
+        # Check file size (prevent serving huge files)
+        file_size = os.path.getsize(filepath)
+        if file_size > 10 * 1024 * 1024:  # 10MB limit
+            print(f"File too large: {filepath} ({file_size} bytes)")
+            return redirect(url_for('static', filename='images/default-avatar.svg'))
 
         # Serve the file with proper caching headers
         response = send_from_directory(upload_dir, filename)
         response.cache_control.max_age = 3600  # Cache for 1 hour
         response.cache_control.public = True
+        response.headers['X-Content-Type-Options'] = 'nosniff'
         return response
 
     except Exception as e:
         print(f"Error serving profile picture {filename}: {e}")
         # Return default avatar on error
-        try:
-            return redirect(url_for('static', filename='images/default-avatar.png'))
-        except:
-            return '', 404
+        return redirect(url_for('static', filename='images/default-avatar.svg'))
 
 @app.route('/profile/picture/delete', methods=['POST'])
 def delete_profile_picture():
@@ -3603,6 +3691,146 @@ def api_fast_recent_activity():
 
     except Exception as e:
         return jsonify({'error': f'Recent activity API error: {str(e)}'}), 500
+
+@app.route('/api/fast/challenge/<int:challenge_id>')
+def api_fast_challenge(challenge_id):
+    """Ultra-fast challenge data API endpoint"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        user_id = session['user_id']
+        cache_key = f"fast_challenge_{challenge_id}_{user_id}"
+
+        def generate_challenge_api_data():
+            # Optimized single query for challenge data
+            challenge_data = db.session.query(
+                Challenge.id,
+                Challenge.title,
+                Challenge.description,
+                Challenge.points,
+                Challenge.category,
+                Challenge.difficulty,
+                Challenge.opens_at,
+                Challenge.closes_at
+            ).filter_by(id=challenge_id).first()
+
+            if not challenge_data:
+                return None
+
+            # Check if solved
+            is_solved = db.session.query(Solve.id).filter_by(
+                user_id=user_id,
+                challenge_id=challenge_id
+            ).first() is not None
+
+            # Get hints
+            hints = db.session.query(
+                Hint.id,
+                Hint.text,
+                Hint.cost,
+                Hint.display_order
+            ).filter_by(challenge_id=challenge_id).order_by(Hint.display_order).all()
+
+            # Get revealed hints
+            revealed_hints = set(
+                h.hint_id for h in db.session.query(UserHint.hint_id).filter_by(user_id=user_id).all()
+            )
+
+            return {
+                'id': challenge_data.id,
+                'title': challenge_data.title,
+                'description': challenge_data.description,
+                'points': challenge_data.points,
+                'category': challenge_data.category,
+                'difficulty': challenge_data.difficulty,
+                'is_solved': is_solved,
+                'hints': [{
+                    'id': h.id,
+                    'text': h.text,
+                    'cost': h.cost,
+                    'display_order': h.display_order,
+                    'revealed': h.id in revealed_hints
+                } for h in hints]
+            }
+
+        data = get_from_cache(cache_key, generate_challenge_api_data, timeout=30)
+
+        if data:
+            g.cache_hit = True
+            return jsonify({'success': True, 'challenge': data})
+        else:
+            return jsonify({'error': 'Challenge not found'}), 404
+
+    except Exception as e:
+        return jsonify({'error': f'Challenge API error: {str(e)}'}), 500
+
+@app.route('/api/submit_flag/<int:challenge_id>', methods=['POST'])
+def api_submit_flag(challenge_id):
+    """Fast flag submission API endpoint"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        user_id = session['user_id']
+        data = request.get_json()
+
+        if not data or 'flag' not in data:
+            return jsonify({'error': 'Flag is required'}), 400
+
+        flag = data['flag'].strip()
+        if not flag:
+            return jsonify({'error': 'Flag cannot be empty'}), 400
+
+        # Get user and challenge in one query
+        user = db.session.get(User, user_id)
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        if user.role == 'admin':
+            return jsonify({'error': 'Admins cannot submit flags'}), 403
+
+        challenge = db.session.get(Challenge, challenge_id)
+        if not challenge:
+            return jsonify({'error': 'Challenge not found'}), 404
+
+        # Check if already solved
+        existing_solve = Solve.query.filter_by(user_id=user_id, challenge_id=challenge_id).first()
+        if existing_solve:
+            return jsonify({'error': 'Challenge already solved'}), 400
+
+        # Check flag
+        if flag == challenge.flag:
+            # Create solve record
+            solve = Solve(
+                user_id=user_id,
+                challenge_id=challenge_id,
+                timestamp=datetime.utcnow()
+            )
+            db.session.add(solve)
+
+            # Update user score
+            user.score += challenge.points
+            db.session.commit()
+
+            # Clear relevant caches
+            clear_cache('leaderboard')
+            clear_cache('challenge_stats')
+            clear_cache(f'fast_user_stats_{user_id}')
+            clear_cache(f'fast_challenge_{challenge_id}_{user_id}')
+
+            return jsonify({
+                'success': True,
+                'message': 'Correct flag! Well done!',
+                'points': challenge.points,
+                'new_score': user.score
+            })
+        else:
+            return jsonify({'error': 'Incorrect flag. Try again!'}), 400
+
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Submission error: {str(e)}'}), 500
 
 @app.route('/admin/optimize_performance', methods=['POST'])
 def optimize_performance():

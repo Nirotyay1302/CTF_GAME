@@ -33,7 +33,10 @@
         <div class="user-info">
           <div class="profile-picture-container">
             {% if user.profile_picture %}
-              <img src="{{ url_for('profile_picture', filename=user.profile_picture) }}" alt="Profile Picture" class="profile-picture">
+              <img src="{{ url_for('profile_picture', filename=user.profile_picture) }}"
+                   alt="Profile Picture"
+                   class="profile-picture"
+                   onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/default-avatar.svg') }}'; this.parentNode.innerHTML='<div class=\'profile-picture-placeholder\'><i class=\'fas fa-user\'></i></div>';">
             {% else %}
               <div class="profile-picture-placeholder">
                 <i class="fas fa-user"></i>

@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ challenge.title }} - CTF Challenge</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Fast loading optimized styles */
+        .challenge-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            animation: fadeIn 0.3s ease-in;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(20px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        
+        .challenge-header {
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        
+        .challenge-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            margin-bottom: 15px;
+        }
+        
+        .challenge-meta {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            flex-wrap: wrap;
+            margin-bottom: 20px;
+        }
+        
+        .meta-item {
+            background: var(--bg-secondary);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+        
+        .points { color: var(--accent-success); }
+        .category { color: var(--accent-info); }
+        .difficulty { color: var(--accent-warning); }
+        
+        .challenge-content {
+            display: grid;
+            grid-template-columns: 1fr 300px;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+        
+        .main-content {
+            background: var(--bg-card);
+            padding: 30px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .sidebar {
+            background: var(--bg-card);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            height: fit-content;
+        }
+        
+        .flag-form {
+            margin-top: 30px;
+            padding: 25px;
+            background: var(--bg-secondary);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .flag-input {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid var(--border-color);
+            border-radius: 8px;
+            font-size: 16px;
+            margin-bottom: 15px;
+            transition: border-color 0.3s ease;
+        }
+        
+        .flag-input:focus {
+            border-color: var(--accent-primary);
+            outline: none;
+        }
+        
+        .submit-btn {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+        }
+        
+        .submit-btn:hover {
+            background: var(--accent-success);
+            transform: translateY(-2px);
+        }
+        
+        .solved-badge {
+            background: var(--accent-success);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: 600;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+        
+        .spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .challenge-content {
+                grid-template-columns: 1fr;
+            }
+            
+            .challenge-title {
+                font-size: 2rem;
+            }
+            
+            .challenge-meta {
+                flex-direction: column;
+                align-items: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="challenge-container">
+        <!-- Navigation -->
+        <div style="margin-bottom: 30px;">
+            <a href="/dashboard" class="nav-button">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+
+        <!-- Loading State -->
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading challenge...</p>
+        </div>
+
+        <!-- Challenge Content (Hidden initially) -->
+        <div id="challenge-content" style="display: none;">
+            <div class="challenge-header">
+                <h1 id="challenge-title" class="challenge-title">Loading...</h1>
+                <div id="challenge-meta" class="challenge-meta">
+                    <!-- Meta items will be populated by JavaScript -->
+                </div>
+                <div id="solved-status"></div>
+            </div>
+
+            <div class="challenge-content">
+                <div class="main-content">
+                    <h3 style="color: var(--text-primary); margin-bottom: 20px;">
+                        <i class="fas fa-info-circle"></i> Description
+                    </h3>
+                    <div id="challenge-description" style="color: var(--text-secondary); line-height: 1.6;">
+                        Loading description...
+                    </div>
+
+                    <div class="flag-form">
+                        <h4 style="color: var(--text-primary); margin-bottom: 15px;">
+                            <i class="fas fa-flag"></i> Submit Flag
+                        </h4>
+                        <form id="flag-form">
+                            <input type="text" 
+                                   id="flag-input" 
+                                   class="flag-input" 
+                                   placeholder="Enter flag here..." 
+                                   autocomplete="off">
+                            <button type="submit" class="submit-btn">
+                                <i class="fas fa-paper-plane"></i> Submit Flag
+                            </button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="sidebar">
+                    <h4 style="color: var(--text-primary); margin-bottom: 15px;">
+                        <i class="fas fa-lightbulb"></i> Hints
+                    </h4>
+                    <div id="hints-container">
+                        <p style="color: var(--text-secondary);">Loading hints...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Fast challenge loading with AJAX
+        document.addEventListener('DOMContentLoaded', function() {
+            const challengeId = {{ challenge.id }};
+            loadChallengeData(challengeId);
+            setupFlagSubmission(challengeId);
+        });
+
+        function loadChallengeData(challengeId) {
+            fetch(`/api/fast/challenge/${challengeId}`)
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        populateChallengeData(data.challenge);
+                        hideLoading();
+                    } else {
+                        showError(data.error || 'Failed to load challenge');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading challenge:', error);
+                    showError('Network error loading challenge');
+                });
+        }
+
+        function populateChallengeData(challenge) {
+            // Update title
+            document.getElementById('challenge-title').textContent = challenge.title;
+            document.title = `${challenge.title} - CTF Challenge`;
+
+            // Update meta information
+            const metaContainer = document.getElementById('challenge-meta');
+            metaContainer.innerHTML = `
+                <span class="meta-item points">${challenge.points} points</span>
+                <span class="meta-item category">${challenge.category}</span>
+                <span class="meta-item difficulty">${challenge.difficulty}</span>
+            `;
+
+            // Update description
+            document.getElementById('challenge-description').innerHTML = challenge.description;
+
+            // Update solved status
+            const solvedStatus = document.getElementById('solved-status');
+            if (challenge.is_solved) {
+                solvedStatus.innerHTML = '<div class="solved-badge"><i class="fas fa-check"></i> Solved!</div>';
+                document.getElementById('flag-input').disabled = true;
+                document.querySelector('.submit-btn').disabled = true;
+                document.querySelector('.submit-btn').textContent = 'Already Solved';
+            }
+
+            // Update hints
+            populateHints(challenge.hints);
+        }
+
+        function populateHints(hints) {
+            const container = document.getElementById('hints-container');
+            if (hints.length === 0) {
+                container.innerHTML = '<p style="color: var(--text-secondary);">No hints available</p>';
+                return;
+            }
+
+            container.innerHTML = hints.map(hint => `
+                <div class="hint-item" style="margin-bottom: 15px; padding: 15px; background: var(--bg-secondary); border-radius: 8px;">
+                    ${hint.revealed ? 
+                        `<p style="color: var(--text-primary);">${hint.text}</p>` :
+                        `<button onclick="revealHint(${hint.id})" style="background: var(--accent-info); color: white; border: none; padding: 8px 16px; border-radius: 6px; cursor: pointer;">
+                            Reveal Hint (${hint.cost} points)
+                        </button>`
+                    }
+                </div>
+            `).join('');
+        }
+
+        function setupFlagSubmission(challengeId) {
+            document.getElementById('flag-form').addEventListener('submit', function(e) {
+                e.preventDefault();
+                const flag = document.getElementById('flag-input').value.trim();
+                
+                if (!flag) {
+                    alert('Please enter a flag');
+                    return;
+                }
+
+                submitFlag(challengeId, flag);
+            });
+        }
+
+        function submitFlag(challengeId, flag) {
+            const submitBtn = document.querySelector('.submit-btn');
+            const originalText = submitBtn.innerHTML;
+            
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+            submitBtn.disabled = true;
+
+            fetch(`/api/submit_flag/${challengeId}`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ flag: flag })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    showSuccess('Correct flag! Well done!');
+                    setTimeout(() => {
+                        window.location.href = '/dashboard';
+                    }, 2000);
+                } else {
+                    showError(data.error || 'Incorrect flag');
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }
+            })
+            .catch(error => {
+                console.error('Error submitting flag:', error);
+                showError('Network error submitting flag');
+                submitBtn.innerHTML = originalText;
+                submitBtn.disabled = false;
+            });
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('challenge-content').style.display = 'block';
+        }
+
+        function showError(message) {
+            document.getElementById('loading').innerHTML = `
+                <div style="color: var(--accent-danger);">
+                    <i class="fas fa-exclamation-triangle" style="font-size: 2rem; margin-bottom: 15px;"></i>
+                    <p>${message}</p>
+                    <button onclick="location.reload()" style="margin-top: 15px; padding: 10px 20px; background: var(--accent-primary); color: white; border: none; border-radius: 6px; cursor: pointer;">
+                        Try Again
+                    </button>
+                </div>
+            `;
+        }
+
+        function showSuccess(message) {
+            const alert = document.createElement('div');
+            alert.style.cssText = 'position: fixed; top: 20px; right: 20px; background: var(--accent-success); color: white; padding: 15px 20px; border-radius: 8px; z-index: 1000; animation: slideIn 0.3s ease;';
+            alert.innerHTML = `<i class="fas fa-check"></i> ${message}`;
+            document.body.appendChild(alert);
+            
+            setTimeout(() => alert.remove(), 3000);
+        }
+
+        function revealHint(hintId) {
+            // Implement hint revelation
+            console.log('Revealing hint:', hintId);
+        }
+    </script>
+    
+    {% include '_contact_footer.html' %}
+</body>
+</html>

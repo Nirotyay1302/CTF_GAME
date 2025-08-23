@@ -947,7 +947,7 @@ body {
   transform: translateY(-2px);
 }
 
-/* Main Content */
+/* Main Content - Fixed Layout */
 .main-content {
   margin-top: 80px;
   padding: 2rem;
@@ -955,21 +955,29 @@ body {
   margin-left: auto;
   margin-right: auto;
   transition: margin-right 0.3s ease;
+  min-height: calc(100vh - 80px);
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
 }
 
 .main-content.sidebar-open {
   margin-right: 350px;
 }
 
-/* Stats Section */
+/* Stats Section - Enhanced Layout */
 .stats-section {
   margin-bottom: 2rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .stats-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .stat-card {
@@ -1234,8 +1242,11 @@ body {
 
 .challenges-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 1.5rem;
+  width: 100%;
+  box-sizing: border-box;
+  align-items: start;
 }
 
 .challenge-card {
@@ -1707,7 +1718,43 @@ body {
   .filter-select {
     min-width: auto;
   }
-  
+
+  /* Enhanced mobile layout fixes */
+  .main-content {
+    padding: 1rem;
+    margin-top: 60px;
+    gap: 1.5rem;
+  }
+
+  .challenges-grid {
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .stat-card {
+    padding: 1rem;
+    text-align: center;
+  }
+
+  .challenge-card {
+    margin-bottom: 1rem;
+    padding: 1rem;
+  }
+
+  /* Fix profile picture display */
+  .profile-picture {
+    width: 40px;
+    height: 40px;
+  }
+
+  .profile-picture-placeholder {
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
   .progress-grid {
     grid-template-columns: 1fr;
   }
