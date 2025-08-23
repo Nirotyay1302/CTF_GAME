@@ -978,18 +978,37 @@ def show_answer(challenge_id):
         return redirect(url_for('dashboard'))
 
     try:
-        # Try to decrypt the flag
-        if challenge.flag_encrypted:
-            answer = fernet.decrypt(challenge.flag_encrypted).decode()
-        else:
-            answer = "No answer available"
+        # Try to decrypt the flag with enhanced debugging
+        print(f"Attempting to decrypt flag for challenge {challenge_id}")
+        print(f"Challenge flag_encrypted exists: {bool(challenge.flag_encrypted)}")
+        print(f"Challenge flag_encrypted type: {type(challenge.flag_encrypted)}")
 
-        # Log the answer request for debugging
-        print(f"Answer requested for challenge {challenge_id}: {answer}")
+        if challenge.flag_encrypted:
+            try:
+                answer = fernet.decrypt(challenge.flag_encrypted).decode()
+                print(f"Successfully decrypted flag: {answer}")
+            except Exception as decrypt_error:
+                print(f"Fernet decryption failed: {decrypt_error}")
+                # Try alternative method - maybe it's stored as string
+                try:
+                    if isinstance(challenge.flag_encrypted, str):
+                        answer = challenge.flag_encrypted
+                        print(f"Using flag_encrypted as string: {answer}")
+                    else:
+                        answer = "Decryption failed"
+                except Exception as alt_error:
+                    print(f"Alternative method failed: {alt_error}")
+                    answer = "Decryption failed"
+        else:
+            answer = "No flag data available"
+            print("No flag_encrypted field found")
+
+        # Log the final answer for debugging
+        print(f"Final answer for challenge {challenge_id}: {answer}")
 
     except Exception as e:
-        print(f"Error decrypting flag for challenge {challenge_id}: {e}")
-        answer = "Error retrieving answer"
+        print(f"Error retrieving answer for challenge {challenge_id}: {e}")
+        answer = f"Error: {str(e)}"
 
         if request.args.get('format') == 'json':
             return jsonify({'error': 'Error retrieving answer', 'details': str(e)}), 500
@@ -999,6 +1018,44 @@ def show_answer(challenge_id):
         return jsonify({'success': True, 'answer': answer})
 
     return render_template('show_answer.html', challenge=challenge, answer=answer)
+
+@app.route('/debug/challenges')
+def debug_challenges():
+    """Debug route to check challenge flags"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        return jsonify({'error': 'Admin access required'}), 403
+
+    challenges = Challenge.query.limit(5).all()
+    debug_info = []
+
+    for challenge in challenges:
+        info = {
+            'id': challenge.id,
+            'title': challenge.title,
+            'has_flag_encrypted': bool(challenge.flag_encrypted),
+            'flag_encrypted_type': str(type(challenge.flag_encrypted)),
+            'flag_encrypted_length': len(challenge.flag_encrypted) if challenge.flag_encrypted else 0,
+            'has_flag_hash': bool(challenge.flag_hash),
+            'has_flag_salt': bool(challenge.flag_salt)
+        }
+
+        # Try to decrypt
+        try:
+            if challenge.flag_encrypted:
+                decrypted = fernet.decrypt(challenge.flag_encrypted).decode()
+                info['decrypted_flag'] = decrypted
+                info['decryption_success'] = True
+            else:
+                info['decryption_success'] = False
+                info['decrypted_flag'] = None
+        except Exception as e:
+            info['decryption_success'] = False
+            info['decryption_error'] = str(e)
+            info['decrypted_flag'] = None
+
+        debug_info.append(info)
+
+    return jsonify({'challenges': debug_info})
 
 @app.route('/scoreboard')
 def scoreboard():

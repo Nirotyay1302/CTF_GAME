@@ -405,16 +405,32 @@
             const showAnswerBtn = document.getElementById('show-answer-btn');
 
             console.log('Showing answer for challenge:', challengeId);
+            console.log('Elements found:', {
+                answerSection: !!answerSection,
+                answerText: !!answerText,
+                showAnswerBtn: !!showAnswerBtn
+            });
+
+            if (!answerSection || !answerText || !showAnswerBtn) {
+                console.error('Required elements not found');
+                alert('Error: Page elements not found');
+                return;
+            }
 
             // Show loading state
             answerSection.style.display = 'block';
             answerText.textContent = 'Loading answer...';
+            answerText.style.color = 'var(--accent-success)';
             showAnswerBtn.disabled = true;
             showAnswerBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
 
             // Fetch the answer
-            fetch(`/show_answer/${challengeId}?format=json`)
+            const url = `/show_answer/${challengeId}?format=json`;
+            console.log('Fetching from URL:', url);
+
+            fetch(url)
                 .then(response => {
+                    console.log('Response status:', response.status);
                     if (!response.ok) {
                         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
                     }
@@ -425,14 +441,20 @@
 
                     if (data.success && data.answer) {
                         answerText.textContent = data.answer;
+                        answerText.style.color = 'var(--accent-success)';
                     } else if (data.answer) {
                         answerText.textContent = data.answer;
+                        answerText.style.color = 'var(--accent-success)';
                     } else if (data.error) {
                         answerText.textContent = `Error: ${data.error}`;
                         answerText.style.color = 'var(--accent-danger)';
+                        if (data.details) {
+                            console.error('Error details:', data.details);
+                        }
                     } else {
                         answerText.textContent = 'Answer not available';
                         answerText.style.color = 'var(--text-secondary)';
+                        console.warn('Unexpected response format:', data);
                     }
 
                     // Update button

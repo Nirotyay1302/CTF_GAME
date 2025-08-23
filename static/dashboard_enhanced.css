@@ -441,7 +441,7 @@ body {
   }
 }
 
-/* Header */
+/* Header - Fixed Overlapping */
 .header {
   position: fixed;
   top: 0;
@@ -452,6 +452,8 @@ body {
   z-index: 1000;
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
+  height: 80px;
+  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
 }
 
 .header-content {
@@ -771,14 +773,15 @@ body {
   margin: 0.5rem 0;
 }
 
-/* Tournament Banner */
+/* Tournament Banner - Fixed Positioning */
 .tournament-banner {
-  margin-top: 80px;
+  margin-top: 100px; /* Increased to prevent header overlap */
   background: linear-gradient(135deg, var(--accent-warning) 0%, #fbbf24 100%);
   color: white;
   padding: 1.5rem 2rem;
   position: relative;
   overflow: hidden;
+  z-index: 2;
 }
 
 .tournament-banner::before {
@@ -836,14 +839,15 @@ body {
   transition: width 1s ease;
 }
 
-/* Play CTF Banner */
+/* Play CTF Banner - Fixed Positioning */
 .play-ctf-banner {
   background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
   color: white;
   padding: 2rem 0;
-  margin-top: 80px;
+  margin-top: 100px; /* Increased to prevent header overlap */
   position: relative;
   overflow: hidden;
+  z-index: 2;
 }
 
 .play-ctf-banner::before {
@@ -947,18 +951,20 @@ body {
   transform: translateY(-2px);
 }
 
-/* Main Content - Fixed Layout */
+/* Main Content - Fixed Layout and Overlapping */
 .main-content {
-  margin-top: 80px;
+  margin-top: 100px; /* Increased to prevent header overlap */
   padding: 2rem;
   max-width: 1400px;
   margin-left: auto;
   margin-right: auto;
   transition: margin-right 0.3s ease;
-  min-height: calc(100vh - 80px);
+  min-height: calc(100vh - 100px);
   display: flex;
   flex-direction: column;
   gap: 2rem;
+  position: relative;
+  z-index: 1;
 }
 
 .main-content.sidebar-open {
@@ -1722,8 +1728,13 @@ body {
   /* Enhanced mobile layout fixes */
   .main-content {
     padding: 1rem;
-    margin-top: 60px;
+    margin-top: 120px; /* Increased for mobile header */
     gap: 1.5rem;
+  }
+
+  .play-ctf-banner,
+  .tournament-banner {
+    margin-top: 120px;
   }
 
   .challenges-grid {

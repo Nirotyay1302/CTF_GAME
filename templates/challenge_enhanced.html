@@ -538,14 +538,19 @@
                     .then(data => {
                         console.log('Answer data received:', data);
 
+                        // Handle different response formats
                         if (data.success && data.answer) {
-                            answerText.innerHTML = `<strong>Flag:</strong> <code style="background: var(--bg-primary); padding: 4px 8px; border-radius: 4px; color: var(--accent-success);">${data.answer}</code>`;
+                            answerText.innerHTML = `<strong>Flag:</strong> <code style="background: var(--bg-primary); padding: 4px 8px; border-radius: 4px; color: var(--accent-success); font-family: monospace; font-size: 14px;">${data.answer}</code>`;
                         } else if (data.answer) {
-                            answerText.innerHTML = `<strong>Flag:</strong> <code style="background: var(--bg-primary); padding: 4px 8px; border-radius: 4px; color: var(--accent-success);">${data.answer}</code>`;
+                            answerText.innerHTML = `<strong>Flag:</strong> <code style="background: var(--bg-primary); padding: 4px 8px; border-radius: 4px; color: var(--accent-success); font-family: monospace; font-size: 14px;">${data.answer}</code>`;
                         } else if (data.error) {
-                            answerText.innerHTML = `<span style="color: var(--accent-danger);">Error: ${data.error}</span>`;
+                            answerText.innerHTML = `<span style="color: var(--accent-danger);"><i class="fas fa-exclamation-triangle"></i> Error: ${data.error}</span>`;
+                            if (data.details) {
+                                console.error('Error details:', data.details);
+                            }
                         } else {
-                            answerText.innerHTML = '<span style="color: var(--text-secondary);">Answer not available</span>';
+                            answerText.innerHTML = '<span style="color: var(--text-secondary);"><i class="fas fa-info-circle"></i> Answer not available</span>';
+                            console.warn('Unexpected response format:', data);
                         }
 
                         // Re-enable button
