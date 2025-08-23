@@ -12,11 +12,11 @@ cryptography==41.0.7
 
 # Database Drivers
 psycopg2-binary==2.9.9
+psycopg==3.2.9
 PyMySQL==1.1.1
 
 # Production Server
 gunicorn==23.0.0
-eventlet==0.36.1
 
 # Image Processing
 Pillow==10.4.0
