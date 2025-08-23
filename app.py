@@ -63,6 +63,21 @@ try:
 
                 db.create_all()
                 print("Database tables created successfully")
+
+                # Check if we need to initialize sample challenges
+                from models import Challenge
+                challenge_count = Challenge.query.count()
+                print(f"Found {challenge_count} existing challenges")
+
+                if challenge_count == 0:
+                    print("No challenges found, initializing sample challenges...")
+                    try:
+                        from init_challenges import create_sample_challenges
+                        create_sample_challenges()
+                        print("Sample challenges initialized successfully")
+                    except Exception as init_error:
+                        print(f"Error initializing sample challenges: {init_error}")
+
                 return True
         except Exception as e:
             print(f"Error creating database tables: {e}")
