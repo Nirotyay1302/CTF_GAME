@@ -17,8 +17,22 @@ from CTF_GAME import app, db
 from models import Challenge, User
 from config import Config
 
-# Use the same encryption key as the main app
-fernet = Fernet(Config.SECRET_KEY.encode()[:32].ljust(32, b'0'))
+# Use the same encryption key setup as the main app
+FERNET_KEY = os.getenv('FERNET_KEY')
+if not FERNET_KEY:
+    # Use persistent local key file for dev; avoids committing secrets
+    instance_path = os.path.join(os.path.dirname(__file__), 'instance')
+    os.makedirs(instance_path, exist_ok=True)
+    key_path = os.path.join(instance_path, 'fernet.key')
+    if os.path.exists(key_path):
+        with open(key_path, 'rb') as fh:
+            FERNET_KEY = fh.read().strip()
+    else:
+        generated = Fernet.generate_key()
+        with open(key_path, 'wb') as fh:
+            fh.write(generated)
+        FERNET_KEY = generated
+fernet = Fernet(FERNET_KEY.encode() if isinstance(FERNET_KEY, str) else FERNET_KEY)
 
 def create_sample_challenges():
     """Create sample challenges for the CTF game"""

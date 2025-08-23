@@ -1095,6 +1095,98 @@ def api_teams_leaderboard():
 
     return jsonify([{'name': t.name, 'team_code': t.team_code, 'score': int(t.score or 0), 'members': t.members} for t in teams])
 
+@app.route('/admin/init_sample_challenges', methods=['POST'])
+def init_sample_challenges():
+    """Initialize sample challenges for the CTF game"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Unauthorized', 'error')
+        return redirect(url_for('admin_panel'))
+
+    try:
+        # Check if challenges already exist
+        existing_count = Challenge.query.count()
+        if existing_count > 0:
+            flash(f'Challenges already exist ({existing_count} found). Delete existing challenges first if you want to reinitialize.', 'warning')
+            return redirect(url_for('admin_panel'))
+
+        # Sample challenges data
+        sample_challenges = [
+            {
+                'title': 'Welcome to CTF!',
+                'description': 'This is your first challenge! The flag format is flag{...}. Can you find the hidden flag in this message? Hint: Look carefully at the first letter of each word: Find Lovely Amazing Goodies {welcome_to_ctf}',
+                'flag': 'flag{welcome_to_ctf}',
+                'points': 10,
+                'category': 'misc',
+                'difficulty': 'easy'
+            },
+            {
+                'title': 'Base64 Basics',
+                'description': 'Decode this Base64 string to find the flag: ZmxhZ3tiYXNlNjRfaXNfZWFzeX0=',
+                'flag': 'flag{base64_is_easy}',
+                'points': 15,
+                'category': 'crypto',
+                'difficulty': 'easy'
+            },
+            {
+                'title': 'Caesar Cipher',
+                'description': 'Julius Caesar used this cipher to protect his messages. Can you decode this message with a shift of 13? synt{pnrfne_pvcure_vf_sha}',
+                'flag': 'flag{caesar_cipher_is_fun}',
+                'points': 20,
+                'category': 'crypto',
+                'difficulty': 'easy'
+            },
+            {
+                'title': 'Hidden in Plain Sight',
+                'description': 'Sometimes the answer is right in front of you. Inspect this webpage carefully... <!-- flag{inspect_element_ftw} -->',
+                'flag': 'flag{inspect_element_ftw}',
+                'points': 15,
+                'category': 'web',
+                'difficulty': 'easy'
+            },
+            {
+                'title': 'Binary Message',
+                'description': 'Convert this binary to ASCII: 01100110 01101100 01100001 01100111 01111011 01100010 01101001 01101110 01100001 01110010 01111001 01011111 01101001 01110011 01011111 01100011 01101111 01101111 01101100 01111101',
+                'flag': 'flag{binary_is_cool}',
+                'points': 25,
+                'category': 'crypto',
+                'difficulty': 'medium'
+            }
+        ]
+
+        # Create challenges
+        for challenge_data in sample_challenges:
+            # Encrypt the flag
+            encrypted_flag = fernet.encrypt(challenge_data['flag'].encode())
+
+            # Create salt and hash for secure flag validation
+            salt = secrets.token_bytes(16)
+            flag_hash = hashlib.sha256(salt + challenge_data['flag'].encode()).digest()
+
+            # Create challenge
+            challenge = Challenge(
+                title=challenge_data['title'],
+                description=challenge_data['description'],
+                flag_encrypted=encrypted_flag,
+                flag_salt=salt,
+                flag_hash=flag_hash,
+                points=challenge_data['points'],
+                category=challenge_data['category'],
+                difficulty=challenge_data['difficulty'],
+                created_at=datetime.utcnow()
+            )
+
+            db.session.add(challenge)
+
+        db.session.commit()
+        flash(f'Successfully created {len(sample_challenges)} sample challenges!', 'success')
+        notify_admin('Sample challenges initialized', f'{len(sample_challenges)} sample challenges were created by admin.')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error creating sample challenges: {e}', 'error')
+
+    return redirect(url_for('admin_panel'))
+
 @app.route('/admin/generate_challenge', methods=['POST'])
 def generate_dynamic_challenge():
     if 'user_id' not in session or session.get('role') != 'admin':
