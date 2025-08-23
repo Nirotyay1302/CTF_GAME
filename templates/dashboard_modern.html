@@ -6,6 +6,8 @@
     <title>CTF Dashboard - HUNTING-CTF</title>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.7.2/socket.io.js"></script>
     <style>
         :root {
             /* Dark Theme Colors */
@@ -444,6 +446,370 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
         }
+
+        /* Notification System */
+        .notification-container {
+            position: fixed;
+            top: 1rem;
+            right: 1rem;
+            z-index: 1000;
+            max-width: 400px;
+        }
+
+        .notification {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1rem;
+            margin-bottom: 0.5rem;
+            box-shadow: var(--shadow-lg);
+            transform: translateX(100%);
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+        }
+
+        .notification.success::before { background: var(--accent-success); }
+        .notification.error::before { background: var(--accent-danger); }
+        .notification.warning::before { background: var(--accent-warning); }
+        .notification.info::before { background: var(--accent-info); }
+
+        .notification-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 0.5rem;
+        }
+
+        .notification-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .notification-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 0.25rem;
+            transition: all 0.2s;
+        }
+
+        .notification-close:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .notification-body {
+            color: var(--text-secondary);
+            font-size: 0.875rem;
+            line-height: 1.4;
+        }
+
+        /* Chat System */
+        .chat-widget {
+            position: fixed;
+            bottom: 1rem;
+            right: 1rem;
+            z-index: 1000;
+        }
+
+        .chat-toggle {
+            width: 60px;
+            height: 60px;
+            background: var(--gradient-primary);
+            border: none;
+            border-radius: 50%;
+            color: white;
+            font-size: 1.5rem;
+            cursor: pointer;
+            box-shadow: var(--shadow-lg);
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .chat-toggle:hover {
+            transform: scale(1.1);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .chat-badge {
+            position: absolute;
+            top: -5px;
+            right: -5px;
+            background: var(--accent-danger);
+            color: white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            font-size: 0.75rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .chat-window {
+            position: absolute;
+            bottom: 80px;
+            right: 0;
+            width: 350px;
+            height: 500px;
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 1rem;
+            box-shadow: var(--shadow-xl);
+            display: none;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .chat-window.open {
+            display: flex;
+        }
+
+        .chat-header {
+            background: var(--gradient-primary);
+            color: white;
+            padding: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .chat-title {
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .chat-minimize {
+            background: none;
+            border: none;
+            color: white;
+            cursor: pointer;
+            padding: 0.25rem;
+            border-radius: 0.25rem;
+            transition: all 0.2s;
+        }
+
+        .chat-minimize:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .chat-messages {
+            flex: 1;
+            padding: 1rem;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+        }
+
+        .chat-message {
+            display: flex;
+            gap: 0.75rem;
+            align-items: flex-start;
+        }
+
+        .chat-message.own {
+            flex-direction: row-reverse;
+        }
+
+        .chat-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: var(--gradient-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 0.75rem;
+            flex-shrink: 0;
+        }
+
+        .chat-bubble {
+            background: var(--bg-tertiary);
+            border-radius: 1rem;
+            padding: 0.75rem;
+            max-width: 70%;
+            position: relative;
+        }
+
+        .chat-message.own .chat-bubble {
+            background: var(--accent-primary);
+            color: white;
+        }
+
+        .chat-sender {
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-bottom: 0.25rem;
+        }
+
+        .chat-text {
+            font-size: 0.875rem;
+            line-height: 1.4;
+        }
+
+        .chat-time {
+            font-size: 0.625rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .chat-input-container {
+            padding: 1rem;
+            border-top: 1px solid var(--border-color);
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .chat-input {
+            flex: 1;
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-color);
+            border-radius: 0.5rem;
+            padding: 0.75rem;
+            color: var(--text-primary);
+            font-size: 0.875rem;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        .chat-input:focus {
+            border-color: var(--accent-primary);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .chat-send {
+            background: var(--accent-primary);
+            border: none;
+            border-radius: 0.5rem;
+            color: white;
+            padding: 0.75rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .chat-send:hover {
+            background: #2563eb;
+        }
+
+        /* Header Enhancements */
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .notification-bell {
+            position: relative;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 1.25rem;
+            cursor: pointer;
+            padding: 0.5rem;
+            border-radius: 0.5rem;
+            transition: all 0.2s;
+        }
+
+        .notification-bell:hover {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+        }
+
+        .notification-bell .badge {
+            position: absolute;
+            top: 0.25rem;
+            right: 0.25rem;
+            background: var(--accent-danger);
+            color: white;
+            border-radius: 50%;
+            width: 16px;
+            height: 16px;
+            font-size: 0.625rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+        }
+
+        .user-menu {
+            position: relative;
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: var(--gradient-primary);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .user-avatar:hover {
+            transform: scale(1.05);
+        }
+
+        /* Quick Actions */
+        .quick-actions-bar {
+            background: var(--bg-secondary);
+            border-radius: 1rem;
+            padding: 1rem;
+            margin-bottom: 2rem;
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .quick-action {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            text-decoration: none;
+            padding: 0.5rem 1rem;
+            border-radius: 0.5rem;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+
+        .quick-action:hover {
+            background: var(--accent-primary);
+            color: white;
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -469,19 +835,45 @@
                 <a href="/profile" class="nav-link">
                     <i class="fas fa-user"></i> Profile
                 </a>
-                <a href="/logout" class="nav-link">
-                    <i class="fas fa-sign-out-alt"></i> Logout
-                </a>
             </nav>
+            <div class="header-actions">
+                <button class="notification-bell" onclick="toggleNotifications()">
+                    <i class="fas fa-bell"></i>
+                    <span class="badge" id="notificationCount">3</span>
+                </button>
+                <div class="user-menu">
+                    <div class="user-avatar" onclick="toggleUserMenu()">
+                        <i class="fas fa-user"></i>
+                    </div>
+                </div>
+            </div>
         </div>
     </header>
 
     <main class="main-content">
         <section class="welcome-section fade-in-up">
             <div class="welcome-content">
-                <h1>Welcome back, Hacker! 👋</h1>
+                <h1>Welcome back, <span id="userName">Hacker</span>! 👋</h1>
                 <p>Ready to solve some challenges and climb the leaderboard?</p>
             </div>
+        </section>
+
+        <section class="quick-actions-bar fade-in-up">
+            <a href="/challenges?difficulty=easy" class="quick-action">
+                <i class="fas fa-play"></i> Easy Challenges
+            </a>
+            <a href="/challenges?category=web" class="quick-action">
+                <i class="fas fa-globe"></i> Web Challenges
+            </a>
+            <a href="/challenges?category=crypto" class="quick-action">
+                <i class="fas fa-lock"></i> Crypto Challenges
+            </a>
+            <a href="/teams/create" class="quick-action">
+                <i class="fas fa-plus"></i> Create Team
+            </a>
+            <a href="/hints" class="quick-action">
+                <i class="fas fa-lightbulb"></i> Get Hints
+            </a>
         </section>
 
         <section class="stats-grid">
@@ -586,7 +978,58 @@
         </section>
     </main>
 
+    <!-- Notification Container -->
+    <div class="notification-container" id="notificationContainer"></div>
+
+    <!-- Chat Widget -->
+    <div class="chat-widget">
+        <button class="chat-toggle" onclick="toggleChat()">
+            <i class="fas fa-comments"></i>
+            <span class="chat-badge" id="chatBadge">2</span>
+        </button>
+        <div class="chat-window" id="chatWindow">
+            <div class="chat-header">
+                <div class="chat-title">
+                    <i class="fas fa-comments"></i>
+                    Global Chat
+                </div>
+                <button class="chat-minimize" onclick="toggleChat()">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-message">
+                    <div class="chat-avatar">A</div>
+                    <div class="chat-bubble">
+                        <div class="chat-sender">Admin</div>
+                        <div class="chat-text">Welcome to HUNTING-CTF! Good luck with the challenges!</div>
+                        <div class="chat-time">2 minutes ago</div>
+                    </div>
+                </div>
+                <div class="chat-message">
+                    <div class="chat-avatar">H</div>
+                    <div class="chat-bubble">
+                        <div class="chat-sender">Hacker123</div>
+                        <div class="chat-text">Anyone solved the crypto challenge yet?</div>
+                        <div class="chat-time">1 minute ago</div>
+                    </div>
+                </div>
+            </div>
+            <div class="chat-input-container">
+                <input type="text" class="chat-input" placeholder="Type your message..." id="chatInput" onkeypress="handleChatKeyPress(event)">
+                <button class="chat-send" onclick="sendMessage()">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+
     <script>
+        // Global variables
+        let socket = null;
+        let notificationCount = 3;
+        let chatOpen = false;
+
         // Load dashboard data with animations
         document.addEventListener('DOMContentLoaded', function() {
             // Add staggered animation delays
@@ -596,7 +1039,9 @@
             });
 
             loadDashboardData();
-            
+            initializeWebSocket();
+            showWelcomeNotification();
+
             // Auto-refresh every 30 seconds
             setInterval(loadDashboardData, 30000);
         });
@@ -607,10 +1052,15 @@
                 .then(data => {
                     if (data.success) {
                         updateStats(data);
+                        // Update user name if available
+                        if (data.username) {
+                            document.getElementById('userName').textContent = data.username;
+                        }
                     }
                 })
                 .catch(error => {
                     console.log('Could not load dashboard data:', error);
+                    showNotification('Connection Error', 'Could not load dashboard data', 'error');
                 });
         }
 
@@ -619,17 +1069,19 @@
             animateValue('userScore', 0, data.user_score || 0, 1000);
             animateValue('challengesSolved', 0, data.challenges_solved || 0, 1000);
             animateValue('totalChallenges', 0, data.total_challenges || 0, 1000);
-            
+
             // Update rank
             document.getElementById('userRank').textContent = data.user_rank ? `#${data.user_rank}` : '#-';
         }
 
         function animateValue(id, start, end, duration) {
             const element = document.getElementById(id);
+            if (!element) return;
+
             const range = end - start;
             const increment = range / (duration / 16);
             let current = start;
-            
+
             const timer = setInterval(() => {
                 current += increment;
                 if ((increment > 0 && current >= end) || (increment < 0 && current <= end)) {
@@ -639,6 +1091,185 @@
                 element.textContent = Math.floor(current);
             }, 16);
         }
+
+        // Notification System
+        function showNotification(title, message, type = 'info') {
+            const container = document.getElementById('notificationContainer');
+            const notification = document.createElement('div');
+            notification.className = `notification ${type}`;
+
+            const iconMap = {
+                success: 'fas fa-check-circle',
+                error: 'fas fa-exclamation-circle',
+                warning: 'fas fa-exclamation-triangle',
+                info: 'fas fa-info-circle'
+            };
+
+            notification.innerHTML = `
+                <div class="notification-header">
+                    <div class="notification-title">
+                        <i class="${iconMap[type]}"></i>
+                        ${title}
+                    </div>
+                    <button class="notification-close" onclick="closeNotification(this)">
+                        <i class="fas fa-times"></i>
+                    </button>
+                </div>
+                <div class="notification-body">${message}</div>
+            `;
+
+            container.appendChild(notification);
+
+            // Show notification
+            setTimeout(() => notification.classList.add('show'), 100);
+
+            // Auto-remove after 5 seconds
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    closeNotification(notification.querySelector('.notification-close'));
+                }
+            }, 5000);
+
+            // Update notification count
+            updateNotificationCount();
+        }
+
+        function closeNotification(button) {
+            const notification = button.closest('.notification');
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification.parentNode) {
+                    notification.parentNode.removeChild(notification);
+                }
+            }, 300);
+        }
+
+        function updateNotificationCount() {
+            notificationCount++;
+            document.getElementById('notificationCount').textContent = notificationCount;
+        }
+
+        function toggleNotifications() {
+            // Reset notification count
+            notificationCount = 0;
+            document.getElementById('notificationCount').textContent = '0';
+            document.getElementById('notificationCount').style.display = 'none';
+        }
+
+        function showWelcomeNotification() {
+            setTimeout(() => {
+                showNotification(
+                    'Welcome to HUNTING-CTF!',
+                    'Your dashboard is ready. Start solving challenges to earn points!',
+                    'success'
+                );
+            }, 1000);
+        }
+
+        // Chat System
+        function toggleChat() {
+            chatOpen = !chatOpen;
+            const chatWindow = document.getElementById('chatWindow');
+            const chatBadge = document.getElementById('chatBadge');
+
+            if (chatOpen) {
+                chatWindow.classList.add('open');
+                chatBadge.style.display = 'none';
+            } else {
+                chatWindow.classList.remove('open');
+            }
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chatInput');
+            const message = input.value.trim();
+
+            if (message) {
+                addChatMessage('You', message, true);
+                input.value = '';
+
+                // Simulate response (replace with real WebSocket)
+                setTimeout(() => {
+                    const responses = [
+                        "Great question! Keep working on it.",
+                        "Check the documentation for hints.",
+                        "That's a tough one! Good luck!",
+                        "Have you tried a different approach?",
+                        "Nice work! Keep it up!"
+                    ];
+                    const randomResponse = responses[Math.floor(Math.random() * responses.length)];
+                    addChatMessage('Helper', randomResponse, false);
+                }, 1000 + Math.random() * 2000);
+            }
+        }
+
+        function handleChatKeyPress(event) {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        }
+
+        function addChatMessage(sender, message, isOwn = false) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `chat-message ${isOwn ? 'own' : ''}`;
+
+            const avatar = sender.charAt(0).toUpperCase();
+            const time = new Date().toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+
+            messageDiv.innerHTML = `
+                <div class="chat-avatar">${avatar}</div>
+                <div class="chat-bubble">
+                    <div class="chat-sender">${sender}</div>
+                    <div class="chat-text">${message}</div>
+                    <div class="chat-time">${time}</div>
+                </div>
+            `;
+
+            messagesContainer.appendChild(messageDiv);
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+            // Update chat badge if chat is closed
+            if (!chatOpen) {
+                const badge = document.getElementById('chatBadge');
+                const currentCount = parseInt(badge.textContent) || 0;
+                badge.textContent = currentCount + 1;
+                badge.style.display = 'flex';
+            }
+        }
+
+        // WebSocket initialization (placeholder)
+        function initializeWebSocket() {
+            // This would connect to your WebSocket server
+            // socket = io();
+            // socket.on('notification', (data) => {
+            //     showNotification(data.title, data.message, data.type);
+            // });
+            // socket.on('chat_message', (data) => {
+            //     addChatMessage(data.sender, data.message, false);
+            // });
+
+            console.log('WebSocket initialization placeholder');
+        }
+
+        // User menu functions
+        function toggleUserMenu() {
+            // Placeholder for user menu functionality
+            showNotification('User Menu', 'User menu functionality coming soon!', 'info');
+        }
+
+        // Simulate some real-time updates
+        setInterval(() => {
+            if (Math.random() < 0.1) { // 10% chance every 30 seconds
+                const notifications = [
+                    { title: 'New Challenge!', message: 'A new crypto challenge has been added.', type: 'info' },
+                    { title: 'Leaderboard Update', message: 'You moved up 2 positions!', type: 'success' },
+                    { title: 'Team Invite', message: 'You have a new team invitation.', type: 'warning' }
+                ];
+                const randomNotification = notifications[Math.floor(Math.random() * notifications.length)];
+                showNotification(randomNotification.title, randomNotification.message, randomNotification.type);
+            }
+        }, 30000);
     </script>
 </body>
 </html>

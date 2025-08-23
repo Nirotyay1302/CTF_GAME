@@ -868,10 +868,12 @@ def api_dashboard_stats():
         challenges_solved = 0
         user_rank = None
 
+        username = None
         if 'user_id' in session:
             try:
                 user = db.session.get(User, session['user_id'])
                 if user:
+                    username = user.username
                     user_score = user.score
                     challenges_solved = Solve.query.filter_by(user_id=user.id).count()
 
@@ -883,6 +885,7 @@ def api_dashboard_stats():
 
         return jsonify({
             'success': True,
+            'username': username,
             'user_score': user_score,
             'challenges_solved': challenges_solved,
             'total_challenges': total_challenges,
@@ -894,6 +897,77 @@ def api_dashboard_stats():
         return jsonify({
             'success': False,
             'error': 'Could not load dashboard stats'
+        })
+
+@app.route('/api/chat/messages')
+def api_chat_messages():
+    """Get recent chat messages"""
+    try:
+        # For now, return mock data
+        messages = [
+            {
+                'id': 1,
+                'sender': 'Admin',
+                'message': 'Welcome to HUNTING-CTF! Good luck with the challenges!',
+                'timestamp': '2 minutes ago',
+                'avatar': 'A'
+            },
+            {
+                'id': 2,
+                'sender': 'Hacker123',
+                'message': 'Anyone solved the crypto challenge yet?',
+                'timestamp': '1 minute ago',
+                'avatar': 'H'
+            }
+        ]
+
+        return jsonify({
+            'success': True,
+            'messages': messages
+        })
+    except Exception as e:
+        app.logger.error(f"Chat messages error: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Could not load chat messages'
+        })
+
+@app.route('/api/chat/send', methods=['POST'])
+def api_chat_send():
+    """Send a chat message"""
+    try:
+        data = request.get_json()
+        message = data.get('message', '').strip()
+
+        if not message:
+            return jsonify({
+                'success': False,
+                'error': 'Message cannot be empty'
+            })
+
+        # Get sender info
+        sender = 'Anonymous'
+        if 'user_id' in session:
+            try:
+                user = db.session.get(User, session['user_id'])
+                if user:
+                    sender = user.username
+            except:
+                pass
+
+        # In a real implementation, you would save to database and broadcast via WebSocket
+        # For now, just return success
+        return jsonify({
+            'success': True,
+            'message': 'Message sent successfully',
+            'sender': sender
+        })
+
+    except Exception as e:
+        app.logger.error(f"Chat send error: {e}")
+        return jsonify({
+            'success': False,
+            'error': 'Could not send message'
         })
 
 @app.route('/dashboard/fast')
