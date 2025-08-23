@@ -547,9 +547,13 @@ def dashboard_enhanced():
             'solved_count': 0
         }
 
+    # Extract data from dashboard_data
+    challenges = dashboard_data.get('challenges', [])
+    solved_ids = dashboard_data.get('solved_ids', set())
+
     # Get cached stats
     stats_data = get_from_cache('challenge_stats', generate_challenge_stats, timeout=180)
-    total_challenges = stats_data.get('total_challenges', 0) if stats_data else dashboard_data['challenge_count']
+    total_challenges = stats_data.get('total_challenges', 0) if stats_data else dashboard_data.get('challenge_count', 0)
     max_score = stats_data.get('total_points', 0) if stats_data else 0
 
     # Get cached counts
