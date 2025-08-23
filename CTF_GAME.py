@@ -2623,16 +2623,38 @@ def profile():
             else:
                 user.date_of_birth = None
 
-            # Handle profile picture upload
+            # Handle profile picture upload with enhanced error handling
             picture_updated = False
             if 'profile_picture' in request.files:
                 file = request.files['profile_picture']
-                if file and file.filename:
+                if file and file.filename and file.filename.strip():
                     print(f"Processing profile picture: {file.filename}")
 
-                    # Check file type
-                    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
-                    if '.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions:
+                    try:
+                        # Check file type
+                        allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'}
+                        file_extension = None
+
+                        if '.' in file.filename:
+                            file_extension = file.filename.rsplit('.', 1)[1].lower()
+
+                        if not file_extension or file_extension not in allowed_extensions:
+                            flash('Invalid file type. Please upload PNG, JPG, JPEG, GIF, WebP, or BMP files only.', 'error')
+                            return redirect(url_for('profile'))
+
+                        # Check file size first (limit to 5MB)
+                        file.seek(0, 2)  # Seek to end
+                        file_size = file.tell()
+                        file.seek(0)  # Reset to beginning
+
+                        if file_size > 5 * 1024 * 1024:  # 5MB limit
+                            flash('File too large. Please upload an image smaller than 5MB.', 'error')
+                            return redirect(url_for('profile'))
+
+                        if file_size == 0:
+                            flash('Empty file. Please select a valid image.', 'error')
+                            return redirect(url_for('profile'))
+
                         # Create uploads directory if it doesn't exist
                         upload_dir = os.path.join(app.instance_path, 'profile_pictures')
                         os.makedirs(upload_dir, exist_ok=True)
@@ -2648,31 +2670,40 @@ def profile():
                                 except Exception as e:
                                     print(f"Could not remove old picture: {e}")
 
-                        # Generate unique filename
-                        file_extension = file.filename.rsplit('.', 1)[1].lower()
-                        filename = f"profile_{user.id}_{int(time.time())}.{file_extension}"
+                        # Generate unique filename with timestamp
+                        timestamp = int(time.time())
+                        filename = f"profile_{user.id}_{timestamp}.{file_extension}"
                         filepath = os.path.join(upload_dir, filename)
 
-                        # Check file size (limit to 5MB)
-                        file.seek(0, 2)  # Seek to end
-                        file_size = file.tell()
-                        file.seek(0)  # Reset to beginning
+                        # Ensure filename is unique (in case of rapid uploads)
+                        counter = 1
+                        while os.path.exists(filepath):
+                            filename = f"profile_{user.id}_{timestamp}_{counter}.{file_extension}"
+                            filepath = os.path.join(upload_dir, filename)
+                            counter += 1
 
-                        if file_size > 5 * 1024 * 1024:  # 5MB limit
-                            flash('File too large. Please upload an image smaller than 5MB.', 'error')
+                        # Save file with error handling
+                        try:
+                            file.save(filepath)
+                            print(f"Saved profile picture to: {filepath}")
+
+                            # Verify file was saved correctly
+                            if not os.path.exists(filepath) or os.path.getsize(filepath) == 0:
+                                raise Exception("File was not saved correctly")
+
+                            # Update user profile picture path
+                            user.profile_picture = filename
+                            picture_updated = True
+                            print(f"Updated profile_picture field: {user.profile_picture}")
+
+                        except Exception as save_error:
+                            print(f"Error saving file: {save_error}")
+                            flash('Error saving profile picture. Please try again.', 'error')
                             return redirect(url_for('profile'))
 
-                        # Save file
-                        file.save(filepath)
-                        print(f"Saved profile picture to: {filepath}")
-
-                        # Update user profile picture path
-                        user.profile_picture = filename
-                        picture_updated = True
-
-                        print(f"Updated profile_picture field: {user.profile_picture}")
-                    else:
-                        flash('Invalid file type. Please upload PNG, JPG, JPEG, GIF, or WebP files only.', 'error')
+                    except Exception as upload_error:
+                        print(f"Error processing profile picture upload: {upload_error}")
+                        flash('Error processing profile picture. Please try again.', 'error')
                         return redirect(url_for('profile'))
 
             # Check what changed
@@ -2735,26 +2766,42 @@ def profile():
 
 @app.route('/profile/picture/<filename>')
 def profile_picture(filename):
-    """Serve profile pictures"""
-    if 'user_id' not in session:
-        return '', 404
-
+    """Serve profile pictures with proper headers and error handling"""
     try:
+        # Create upload directory if it doesn't exist
         upload_dir = os.path.join(app.instance_path, 'profile_pictures')
+        os.makedirs(upload_dir, exist_ok=True)
+
         filepath = os.path.join(upload_dir, filename)
 
         # Security check: ensure the file exists and is in the correct directory
-        if not os.path.exists(filepath) or not os.path.commonpath([upload_dir, filepath]) == upload_dir:
+        if not os.path.exists(filepath):
+            print(f"Profile picture not found: {filepath}")
+            # Return a default avatar instead of 404
+            return redirect(url_for('static', filename='images/default-avatar.png'))
+
+        # Verify the file is in the correct directory (security)
+        if not os.path.commonpath([upload_dir, filepath]) == upload_dir:
+            print(f"Security violation: file outside upload directory")
             return '', 404
 
-        return send_from_directory(upload_dir, filename)
+        # Serve the file with proper caching headers
+        response = send_from_directory(upload_dir, filename)
+        response.cache_control.max_age = 3600  # Cache for 1 hour
+        response.cache_control.public = True
+        return response
+
     except Exception as e:
         print(f"Error serving profile picture {filename}: {e}")
-        return '', 404
+        # Return default avatar on error
+        try:
+            return redirect(url_for('static', filename='images/default-avatar.png'))
+        except:
+            return '', 404
 
 @app.route('/profile/picture/delete', methods=['POST'])
 def delete_profile_picture():
-    """Delete user's profile picture"""
+    """Delete user's profile picture with enhanced error handling"""
     if 'user_id' not in session:
         return jsonify({'error': 'Not authenticated'}), 401
 
@@ -2768,16 +2815,26 @@ def delete_profile_picture():
             upload_dir = os.path.join(app.instance_path, 'profile_pictures')
             filepath = os.path.join(upload_dir, user.profile_picture)
 
+            # Try to remove file, but don't fail if file doesn't exist
             if os.path.exists(filepath):
-                os.remove(filepath)
-                print(f"Deleted profile picture file: {filepath}")
+                try:
+                    os.remove(filepath)
+                    print(f"Deleted profile picture file: {filepath}")
+                except Exception as file_error:
+                    print(f"Could not delete file {filepath}: {file_error}")
+                    # Continue anyway - remove from database
 
             # Remove from database
+            old_picture = user.profile_picture
             user.profile_picture = None
             db.session.commit()
 
-            flash('Profile picture deleted successfully!', 'success')
-            return jsonify({'success': True, 'message': 'Profile picture deleted'})
+            print(f"Removed profile picture '{old_picture}' from user {user.username}")
+            return jsonify({
+                'success': True,
+                'message': 'Profile picture deleted successfully',
+                'reload': True  # Signal frontend to reload
+            })
         else:
             return jsonify({'error': 'No profile picture to delete'}), 400
 
@@ -2785,6 +2842,26 @@ def delete_profile_picture():
         db.session.rollback()
         print(f"Error deleting profile picture: {e}")
         return jsonify({'error': f'Error deleting profile picture: {str(e)}'}), 500
+
+@app.route('/profile/picture/default')
+def default_profile_picture():
+    """Serve default profile picture"""
+    try:
+        # Try to serve from static files first
+        return redirect(url_for('static', filename='images/default-avatar.png'))
+    except:
+        # If static file doesn't exist, create a simple SVG avatar
+        svg_content = '''<svg width="150" height="150" xmlns="http://www.w3.org/2000/svg">
+            <rect width="150" height="150" fill="#e0e0e0"/>
+            <circle cx="75" cy="60" r="25" fill="#bdbdbd"/>
+            <path d="M30 120 Q75 100 120 120 L120 150 L30 150 Z" fill="#bdbdbd"/>
+            <text x="75" y="140" text-anchor="middle" font-family="Arial" font-size="12" fill="#757575">No Image</text>
+        </svg>'''
+
+        response = make_response(svg_content)
+        response.headers['Content-Type'] = 'image/svg+xml'
+        response.cache_control.max_age = 86400  # Cache for 24 hours
+        return response
 
 @app.route('/admin/users/<int:user_id>/profile')
 def admin_view_user_profile(user_id):
@@ -2882,6 +2959,72 @@ def test_profile():
         return jsonify({
             'success': False,
             'error': f'Profile test failed: {str(e)}'
+        }), 500
+
+@app.route('/profile/picture/test')
+def test_profile_picture():
+    """Test profile picture functionality"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        user = db.session.get(User, session['user_id'])
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # Test upload directory
+        upload_dir = os.path.join(app.instance_path, 'profile_pictures')
+        upload_dir_exists = os.path.exists(upload_dir)
+
+        # Try to create directory if it doesn't exist
+        if not upload_dir_exists:
+            try:
+                os.makedirs(upload_dir, exist_ok=True)
+                upload_dir_created = True
+            except Exception as e:
+                upload_dir_created = False
+                upload_dir_error = str(e)
+        else:
+            upload_dir_created = True
+            upload_dir_error = None
+
+        # Check if user has profile picture
+        has_profile_picture = bool(user.profile_picture)
+        profile_picture_path = None
+        profile_picture_exists = False
+
+        if has_profile_picture:
+            profile_picture_path = os.path.join(upload_dir, user.profile_picture)
+            profile_picture_exists = os.path.exists(profile_picture_path)
+
+        # Test data
+        test_results = {
+            'user_id': user.id,
+            'username': user.username,
+            'upload_directory': upload_dir,
+            'upload_directory_exists': upload_dir_exists,
+            'upload_directory_created': upload_dir_created,
+            'upload_directory_error': upload_dir_error,
+            'has_profile_picture': has_profile_picture,
+            'profile_picture_filename': user.profile_picture,
+            'profile_picture_path': profile_picture_path,
+            'profile_picture_exists': profile_picture_exists,
+            'profile_picture_url': url_for('profile_picture', filename=user.profile_picture) if user.profile_picture else None,
+            'default_avatar_url': url_for('static', filename='images/default-avatar.svg'),
+            'instance_path': app.instance_path,
+            'static_folder': app.static_folder
+        }
+
+        return jsonify({
+            'success': True,
+            'message': 'Profile picture test completed',
+            'results': test_results
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Profile picture test failed: {str(e)}'
         }), 500
 
 # Notification system routes

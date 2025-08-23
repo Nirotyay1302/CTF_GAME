@@ -14,9 +14,11 @@
             <div class="header-left">
                 <div class="avatar-wrap">
                     {% if user.profile_picture %}
-                        <img src="{{ url_for('profile_picture', filename=user.profile_picture) }}" alt="Profile Picture">
+                        <img src="{{ url_for('profile_picture', filename=user.profile_picture) }}"
+                             alt="Profile Picture"
+                             onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/default-avatar.svg') }}';">
                     {% else %}
-                        <div class="avatar-fallback"><i class="fas fa-user"></i></div>
+                        <img src="{{ url_for('static', filename='images/default-avatar.svg') }}" alt="Default Avatar">
                     {% endif %}
                 </div>
                 <div class="header-meta">
@@ -114,16 +116,24 @@
 
                     <div class="form-group">
                         <label for="profile_picture">Profile Picture</label>
-                        {% if user.profile_picture %}
-                        <div class="current-picture">
-                            <img src="{{ url_for('profile_picture', filename=user.profile_picture) }}" alt="Current Profile Picture" style="max-width: 150px; max-height: 150px; border-radius: 8px; margin-bottom: 10px;">
+                        <div class="current-picture" id="current-picture-container">
+                            {% if user.profile_picture %}
+                            <img src="{{ url_for('profile_picture', filename=user.profile_picture) }}"
+                                 alt="Current Profile Picture"
+                                 style="max-width: 150px; max-height: 150px; border-radius: 8px; margin-bottom: 10px; border: 2px solid #ddd;"
+                                 onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/default-avatar.svg') }}';">
                             <div>
                                 <button type="button" onclick="deleteProfilePicture()" class="delete-picture-btn" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
                                     <i class="fas fa-trash"></i> Delete Picture
                                 </button>
                             </div>
+                            {% else %}
+                            <img src="{{ url_for('static', filename='images/default-avatar.svg') }}"
+                                 alt="Default Avatar"
+                                 style="max-width: 150px; max-height: 150px; border-radius: 8px; margin-bottom: 10px; border: 2px solid #ddd; opacity: 0.7;">
+                            <p style="color: #666; font-size: 14px; margin: 5px 0;">No profile picture uploaded</p>
+                            {% endif %}
                         </div>
-                        {% endif %}
                         <div class="file-upload-container">
                             <input type="file" id="profile_picture" name="profile_picture" accept="image/*" onchange="previewImage(this)">
                             <div class="file-upload-info">
@@ -184,9 +194,15 @@
             }
         }
 
-        // Delete profile picture functionality
+        // Delete profile picture functionality with better UX
         function deleteProfilePicture() {
             if (confirm('Are you sure you want to delete your profile picture?')) {
+                // Show loading state
+                const deleteBtn = document.querySelector('.delete-picture-btn');
+                const originalText = deleteBtn.innerHTML;
+                deleteBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Deleting...';
+                deleteBtn.disabled = true;
+
                 fetch('/profile/picture/delete', {
                     method: 'POST',
                     headers: {
@@ -196,15 +212,20 @@
                 .then(response => response.json())
                 .then(data => {
                     if (data.success) {
-                        // Reload the page to show changes
+                        // Show success message and reload
+                        alert('Profile picture deleted successfully!');
                         window.location.reload();
                     } else {
+                        deleteBtn.innerHTML = originalText;
+                        deleteBtn.disabled = false;
                         alert('Error: ' + (data.error || 'Unknown error'));
                     }
                 })
                 .catch(error => {
                     console.error('Error:', error);
-                    alert('Error deleting profile picture');
+                    deleteBtn.innerHTML = originalText;
+                    deleteBtn.disabled = false;
+                    alert('Error deleting profile picture. Please try again.');
                 });
             }
         }
@@ -214,10 +235,11 @@
             const form = document.querySelector('.profile-form');
             const fileInput = document.getElementById('profile_picture');
 
-            // File size validation
+            // Enhanced file validation
             fileInput.addEventListener('change', function() {
                 const file = this.files[0];
                 if (file) {
+                    // Check file size (5MB limit)
                     const maxSize = 5 * 1024 * 1024; // 5MB
                     if (file.size > maxSize) {
                         alert('File too large! Please select an image smaller than 5MB.');
@@ -225,13 +247,37 @@
                         return;
                     }
 
-                    // Check file type
-                    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
-                    if (!allowedTypes.includes(file.type)) {
-                        alert('Invalid file type! Please select a PNG, JPG, JPEG, GIF, or WebP image.');
+                    // Check if file is empty
+                    if (file.size === 0) {
+                        alert('Empty file! Please select a valid image.');
                         this.value = '';
                         return;
                     }
+
+                    // Check file type
+                    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp', 'image/bmp'];
+                    if (!allowedTypes.includes(file.type)) {
+                        alert('Invalid file type! Please select a PNG, JPG, JPEG, GIF, WebP, or BMP image.');
+                        this.value = '';
+                        return;
+                    }
+
+                    // Check file extension as additional validation
+                    const fileName = file.name.toLowerCase();
+                    const allowedExtensions = ['.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'];
+                    const hasValidExtension = allowedExtensions.some(ext => fileName.endsWith(ext));
+
+                    if (!hasValidExtension) {
+                        alert('Invalid file extension! Please select a file with a valid image extension.');
+                        this.value = '';
+                        return;
+                    }
+
+                    console.log('File validation passed:', {
+                        name: file.name,
+                        size: file.size,
+                        type: file.type
+                    });
                 }
             });
 

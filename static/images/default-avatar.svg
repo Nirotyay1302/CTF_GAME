@@ -1,0 +1,16 @@
+<svg width="150" height="150" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 150 150">
+  <!-- Background circle -->
+  <circle cx="75" cy="75" r="75" fill="#f0f0f0" stroke="#ddd" stroke-width="2"/>
+  
+  <!-- Head -->
+  <circle cx="75" cy="55" r="25" fill="#bbb"/>
+  
+  <!-- Body -->
+  <path d="M35 120 Q75 95 115 120 L115 150 L35 150 Z" fill="#bbb"/>
+  
+  <!-- Optional: Add some styling -->
+  <style>
+    .avatar-bg { fill: #f8f9fa; }
+    .avatar-person { fill: #6c757d; }
+  </style>
+</svg>
