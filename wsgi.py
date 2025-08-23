@@ -51,7 +51,14 @@ try:
     print("=== STARTING CTF_GAME IMPORT ===")
     print(f"Python version: {sys.version}")
     print(f"Working directory: {os.getcwd()}")
-    print(f"DATABASE_URL set: {bool(os.environ.get('DATABASE_URL'))}")
+
+    # Check DATABASE_URL
+    database_url = os.environ.get('DATABASE_URL')
+    print(f"DATABASE_URL set: {bool(database_url)}")
+    if database_url:
+        print(f"DATABASE_URL preview: {database_url[:50]}...")
+    else:
+        print("WARNING: DATABASE_URL not set - will use SQLite fallback")
 
     print("Importing CTF_GAME...")
     from CTF_GAME import app, db
@@ -63,8 +70,20 @@ try:
         try:
             with app.app_context():
                 print("Creating database tables...")
+                print(f"Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')[:100]}...")
+
                 # Import models to ensure they're registered
                 from models import User, Challenge, Solve, Team, Tournament
+
+                # Test database connection first
+                try:
+                    result = db.session.execute(db.text('SELECT 1'))
+                    result.close()
+                    print("Database connection successful")
+                except Exception as conn_error:
+                    print(f"Database connection failed: {conn_error}")
+                    return False
+
                 db.create_all()
                 print("Database tables created successfully")
                 return True
@@ -75,7 +94,9 @@ try:
 
     # Initialize database on startup
     print("Initializing database...")
-    create_tables()
+    db_success = create_tables()
+    if not db_success:
+        print("WARNING: Database initialization failed - app may not work correctly")
 
     # Configure Flask app for production
     app.config['DEBUG'] = False
