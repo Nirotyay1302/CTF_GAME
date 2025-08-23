@@ -6,6 +6,8 @@ services:
     startCommand: gunicorn --bind 0.0.0.0:$PORT --workers 1 --threads 4 --timeout 120 wsgi:application
     plan: free
     envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
       - key: SECRET_KEY
         generateValue: true
       - key: FLASK_DEBUG

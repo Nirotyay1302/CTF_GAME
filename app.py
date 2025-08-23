@@ -88,9 +88,10 @@ except Exception as e:
 
     @app.route('/')
     def fallback():
+        error_msg = str(e) if 'e' in locals() else 'Unknown error during CTF_GAME import'
         return f"""
-        <h1>CTF Game - Database Configuration Issue</h1>
-        <p><strong>Error:</strong> {str(e)}</p>
+        <h1>CTF Game - Import Error</h1>
+        <p><strong>Error:</strong> {error_msg}</p>
         <p><strong>DATABASE_URL set:</strong> {bool(os.environ.get('DATABASE_URL'))}</p>
 
         <h2>To Fix This Issue:</h2>
@@ -107,10 +108,11 @@ except Exception as e:
 
     @app.route('/database-status')
     def fallback_status():
+        error_msg = str(e) if 'e' in locals() else 'Unknown error during CTF_GAME import'
         return jsonify({
             'error': 'Main app failed to load',
             'database_url_set': bool(os.environ.get('DATABASE_URL')),
-            'message': str(e)
+            'message': error_msg
         })
 
 # This is what gunicorn will use
