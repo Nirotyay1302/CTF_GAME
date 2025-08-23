@@ -359,13 +359,7 @@
                         <div class="stat-label">Active Players</div>
                     </div>
                 </div>
-                <div style="margin-top:16px;">
-                  <canvas id="challengePopularity" height="120"></canvas>
-                </div>
-                <div style="margin-top:16px; display:grid; grid-template-columns: repeat(auto-fit, minmax(260px,1fr)); gap:12px;">
-                  <canvas id="avgSolveTime" height="140"></canvas>
-                  <canvas id="solvesPerDay" height="140"></canvas>
-                </div>
+
             </div>
 
             <!-- Add New Challenge Section -->
@@ -695,7 +689,7 @@
     </div>
 
   {% include '_contact_footer.html' %}
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
     <script>
         function toggleEditForm(challengeId) {
             const form = document.getElementById('edit-form-' + challengeId);
@@ -735,40 +729,7 @@
                 flagSpan.textContent = '[Click to reveal]';
             }
         }
-        // Charts (basic demo data; for real metrics you can wire API endpoints)
-        document.addEventListener('DOMContentLoaded', function(){
-          const popularityCtx = document.getElementById('challengePopularity');
-          if (popularityCtx) {
-            new Chart(popularityCtx, {
-              type: 'bar',
-              data: {
-                labels: [{% for c in challenges[:10] %}'{{ c.title|replace("'","\'") }}'{% if not loop.last %},{% endif %}{% endfor %}],
-                datasets: [{
-                  label: 'Solves',
-                  data: [{% for c in challenges[:10] %}{{ c.solve_count if c.solve_count is defined else 0 }}{% if not loop.last %},{% endif %}{% endfor %}],
-                  backgroundColor: 'rgba(59,130,246,0.6)'
-                }]
-              },
-              options: {responsive:true, plugins:{legend:{display:false}}}
-            });
-          }
-          const avgCtx = document.getElementById('avgSolveTime');
-          if (avgCtx) {
-            new Chart(avgCtx, {
-              type: 'line',
-              data: {labels:['Easy','Medium','Hard'], datasets:[{label:'Avg Solve Time (mins)', data:[10,25,60], borderColor:'var(--accent-success)', fill:false}]},
-              options: {responsive:true}
-            });
-          }
-          const dailyCtx = document.getElementById('solvesPerDay');
-          if (dailyCtx) {
-            new Chart(dailyCtx, {
-              type: 'line',
-              data: {labels:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'], datasets:[{label:'Solves', data:[4,8,6,9,12,7,5], borderColor:'var(--accent-warning)', fill:false}]},
-              options: {responsive:true}
-            });
-          }
-        });
+
     </script>
 </body>
 </html>

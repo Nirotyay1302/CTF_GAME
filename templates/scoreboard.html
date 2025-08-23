@@ -35,6 +35,38 @@
         .header p { font-size: 1.1rem; opacity: 0.9; }
         .scoreboard-container { padding: 30px 10px; }
         .navigation { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 30px; gap: 10px; }
+        .filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+        .filter-select {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 8px 12px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+        .stats-overview {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-bottom: 5px;
+        }
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
         .nav-button {
             background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
             color: var(--button-text);
@@ -143,15 +175,37 @@
                     <i class="fas fa-users"></i> Team Rankings
                 </a>
             </div>
-            
-            <div class="stats">
+
+            <!-- Filters -->
+            <div class="filters">
+                <select class="filter-select" onchange="filterScoreboard('time', this.value)">
+                    <option value="all" {% if time_filter == 'all' %}selected{% endif %}>All Time</option>
+                    <option value="day" {% if time_filter == 'day' %}selected{% endif %}>Last 24 Hours</option>
+                    <option value="week" {% if time_filter == 'week' %}selected{% endif %}>Last Week</option>
+                    <option value="month" {% if time_filter == 'month' %}selected{% endif %}>Last Month</option>
+                </select>
+
+                <select class="filter-select" onchange="filterScoreboard('category', this.value)">
+                    <option value="all" {% if category_filter == 'all' %}selected{% endif %}>All Categories</option>
+                    {% for category in categories %}
+                    <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
+                    {% endfor %}
+                </select>
+
+                <button class="nav-button" onclick="refreshScoreboard()" style="padding: 8px 16px;">
+                    <i class="fas fa-sync-alt"></i> Refresh
+                </button>
+            </div>
+
+            <!-- Statistics Overview -->
+            <div class="stats-overview">
                 <div class="stat-card">
                     <div class="stat-number">{{ total_users }}</div>
-                    <div class="stat-label">Total Users</div>
+                    <div class="stat-label">Total Players</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number">{{ total_challenges }}</div>
-                    <div class="stat-label">Total Challenges</div>
+                    <div class="stat-label">Challenges</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number">{{ total_solves }}</div>
@@ -175,17 +229,22 @@
                 </thead>
                 <tbody>
                     {% for user in users %}
-                    <tr class="{% if user.username == current_user.username %}current-user{% endif %} {% if loop.index <= 3 %}top{{ loop.index }}{% endif %}">
-                        <td class="rank">{{ loop.index }}</td>
-                        <td class="username">{{ user.username }}</td>
+                    <tr class="{% if user.is_current_user %}current-user{% endif %} {% if user.rank <= 3 %}top{{ user.rank }}{% endif %}">
+                        <td class="rank">{{ user.rank }}</td>
+                        <td class="username">
+                            {{ user.username }}
+                            {% if user.country %}
+                                <span style="font-size: 0.8em; color: var(--text-secondary);">({{ user.country }})</span>
+                            {% endif %}
+                        </td>
                         <td class="solves">{{ user.solve_count }}</td>
                         <td class="score">{{ user.score }}</td>
                         <td class="medals">
-                            {% if loop.index == 1 %}
+                            {% if user.rank == 1 %}
                                 <div class="medal gold">🥇</div>
-                            {% elif loop.index == 2 %}
+                            {% elif user.rank == 2 %}
                                 <div class="medal silver">🥈</div>
-                            {% elif loop.index == 3 %}
+                            {% elif user.rank == 3 %}
                                 <div class="medal bronze">🥉</div>
                             {% endif %}
                         </td>
@@ -197,8 +256,56 @@
                     {% endfor %}
                 </tbody>
             </table>
+
+            <!-- Recent Activity -->
+            {% if recent_solves %}
+            <div style="margin-top: 30px;">
+                <h3 style="color: var(--text-primary); margin-bottom: 15px;">
+                    <i class="fas fa-clock"></i> Recent Solves
+                </h3>
+                <div style="background: var(--bg-card); border-radius: 12px; padding: 20px; border: 1px solid var(--border-color);">
+                    {% for solve in recent_solves %}
+                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
+                        <div>
+                            <strong style="color: var(--text-primary);">{{ solve.username }}</strong>
+                            solved
+                            <span style="color: var(--accent-primary);">{{ solve.title }}</span>
+                            <span style="color: var(--accent-success);">({{ solve.points }} pts)</span>
+                        </div>
+                        <div style="color: var(--text-secondary); font-size: 0.9em;">
+                            {{ solve.timestamp.strftime('%H:%M') }}
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endif %}
         </div>
     </div>
+
+    <script>
+        function filterScoreboard(type, value) {
+            const url = new URL(window.location);
+            url.searchParams.set(type, value);
+            window.location.href = url.toString();
+        }
+
+        function refreshScoreboard() {
+            window.location.reload();
+        }
+
+        // Auto-refresh every 30 seconds
+        setInterval(refreshScoreboard, 30000);
+
+        // Add loading state for filters
+        document.querySelectorAll('.filter-select').forEach(select => {
+            select.addEventListener('change', function() {
+                this.style.opacity = '0.5';
+                this.disabled = true;
+            });
+        });
+    </script>
+
     {% include '_contact_footer.html' %}
 </body>
 </html>

@@ -1,64 +1,344 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>Tournaments</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-  </head>
-  <body>
-    <div class="container" style="max-width: 900px;">
-      <h1>Tournaments</h1>
-      <div style="margin-bottom:12px;">
-        <a class="button" href="{{ url_for('admin_panel') }}">Back to Admin</a>
-      </div>
-      <h3>Create Tournament</h3>
-      <form method="POST">
-        <input type="text" name="name" placeholder="Name" required style="width:100%; margin-bottom:8px;" />
-        <input type="text" name="start_time" placeholder="Start (YYYY-MM-DDTHH:MM:SS)" required style="width:100%; margin-bottom:8px;" />
-        <input type="text" name="end_time" placeholder="End (YYYY-MM-DDTHH:MM:SS)" required style="width:100%; margin-bottom:8px;" />
-        <button type="submit">Create</button>
-      </form>
-      <h3 style="margin-top:18px;">Existing</h3>
-      <table style="width:100%; border-collapse: collapse;">
-        <thead>
-          <tr style="text-align:left; border-bottom:1px solid #444;">
-            <th>#</th>
-            <th>Name</th>
-            <th>Start</th>
-            <th>End</th>
-            <th>Status</th>
-            <th>Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for t in tournaments %}
-          <tr style="border-bottom:1px solid #333;">
-            <td>{{ loop.index }}</td>
-            <td>{{ t.name }}</td>
-            <td>{{ t.start_time }}</td>
-            <td>{{ t.end_time }}</td>
-            <td>{{ 'Active' if t.active else 'Inactive' }}</td>
-            <td>
-              {% if not t.active %}
-              <form method="POST" action="{{ url_for('activate_tournament', tournament_id=t.id) }}" style="display:inline-block;">
-                <button type="submit">Activate</button>
-              </form>
-              {% else %}
-              <form method="POST" action="{{ url_for('deactivate_tournament', tournament_id=t.id) }}" style="display:inline-block;">
-                <button type="submit">Deactivate</button>
-              </form>
-              {% endif %}
-            </td>
-          </tr>
-          {% else %}
-          <tr>
-            <td colspan="6" style="padding:10px; color:#cbd5e1;">No tournaments yet.</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tournament Management - CTF Admin</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .tournament-container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .tournament-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 30px;
+            padding: 20px;
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+
+        .create-tournament-form {
+            background: var(--bg-card);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            margin-bottom: 30px;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .form-group label {
+            color: var(--text-primary);
+            margin-bottom: 5px;
+            font-weight: 500;
+        }
+
+        .form-group input, .form-group textarea, .form-group select {
+            background: var(--bg-primary);
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
+            padding: 10px;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+
+        .checkbox-group {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 10px;
+        }
+
+        .tournaments-list {
+            background: var(--bg-card);
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            overflow: hidden;
+        }
+
+        .tournament-item {
+            padding: 20px;
+            border-bottom: 1px solid var(--border-color);
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 20px;
+            align-items: center;
+        }
+
+        .tournament-item:last-child {
+            border-bottom: none;
+        }
+
+        .tournament-info h3 {
+            color: var(--text-primary);
+            margin: 0 0 8px 0;
+            font-size: 1.2rem;
+        }
+
+        .tournament-meta {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-bottom: 8px;
+        }
+
+        .meta-item {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        .status-active { background: var(--accent-success); color: white; }
+        .status-inactive { background: var(--text-muted); color: white; }
+        .status-upcoming { background: var(--accent-info); color: white; }
+        .status-ongoing { background: var(--accent-warning); color: white; }
+        .status-ended { background: var(--accent-danger); color: white; }
+
+        .tournament-actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            font-weight: 500;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+        }
+
+        .btn-activate { background: var(--accent-success); color: white; }
+        .btn-deactivate { background: var(--accent-danger); color: white; }
+        .btn-edit { background: var(--accent-info); color: white; }
+        .btn-delete { background: var(--accent-danger); color: white; }
+
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+        }
+
+        @media (max-width: 768px) {
+            .tournament-item {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="tournament-container">
+        <div class="tournament-header">
+            <div>
+                <h1 style="margin: 0; color: var(--text-primary);">
+                    <i class="fas fa-trophy"></i> Tournament Management
+                </h1>
+                <p style="margin: 5px 0 0 0; color: var(--text-secondary);">
+                    Create and manage CTF tournaments
+                </p>
+            </div>
+            <a href="{{ url_for('admin_panel') }}" class="action-btn btn-edit">
+                <i class="fas fa-arrow-left"></i> Back to Admin
+            </a>
+        </div>
+
+        <!-- Create Tournament Form -->
+        <div class="create-tournament-form">
+            <h2 style="color: var(--text-primary); margin-bottom: 20px;">
+                <i class="fas fa-plus"></i> Create New Tournament
+            </h2>
+
+            <form method="POST">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="name">Tournament Name *</label>
+                        <input type="text" id="name" name="name" placeholder="Enter tournament name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="max_teams">Max Teams</label>
+                        <input type="number" id="max_teams" name="max_teams" placeholder="100" min="1" value="100">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="start_time">Start Time *</label>
+                        <input type="datetime-local" id="start_time" name="start_time" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="end_time">End Time *</label>
+                        <input type="datetime-local" id="end_time" name="end_time" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="description">Description</label>
+                    <textarea id="description" name="description" placeholder="Tournament description (optional)"></textarea>
+                </div>
+
+                <div class="checkbox-group">
+                    <input type="checkbox" id="registration_open" name="registration_open" checked>
+                    <label for="registration_open">Open for registration</label>
+                </div>
+
+                <button type="submit" class="action-btn btn-activate" style="margin-top: 15px; padding: 10px 20px;">
+                    <i class="fas fa-plus"></i> Create Tournament
+                </button>
+            </form>
+        </div>
+        <!-- Tournaments List -->
+        <div class="tournaments-list">
+            <div style="padding: 20px; border-bottom: 1px solid var(--border-color);">
+                <h2 style="margin: 0; color: var(--text-primary);">
+                    <i class="fas fa-list"></i> Existing Tournaments
+                </h2>
+            </div>
+
+            {% if tournaments_data %}
+                {% for tournament_info in tournaments_data %}
+                <div class="tournament-item">
+                    <div class="tournament-info">
+                        <h3>{{ tournament_info.tournament.name }}</h3>
+
+                        <div class="tournament-meta">
+                            <div class="meta-item">
+                                <i class="fas fa-calendar-start"></i>
+                                Start: {{ tournament_info.tournament.start_time.strftime('%Y-%m-%d %H:%M') }}
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-calendar-end"></i>
+                                End: {{ tournament_info.tournament.end_time.strftime('%Y-%m-%d %H:%M') }}
+                            </div>
+                            <div class="meta-item">
+                                <i class="fas fa-users"></i>
+                                Max Teams: {{ tournament_info.tournament.max_teams or 'Unlimited' }}
+                            </div>
+                        </div>
+
+                        {% if tournament_info.tournament.description %}
+                        <p style="color: var(--text-secondary); margin: 8px 0; font-size: 0.9rem;">
+                            {{ tournament_info.tournament.description }}
+                        </p>
+                        {% endif %}
+
+                        <div style="display: flex; gap: 8px; margin-top: 8px;">
+                            <span class="status-badge status-{{ 'active' if tournament_info.tournament.active else 'inactive' }}">
+                                {{ tournament_info.status }}
+                            </span>
+                            <span class="status-badge status-{{ tournament_info.time_status.lower() }}">
+                                {{ tournament_info.time_status }}
+                            </span>
+                            {% if tournament_info.tournament.registration_open %}
+                            <span class="status-badge status-upcoming">
+                                Registration Open
+                            </span>
+                            {% endif %}
+                        </div>
+                    </div>
+
+                    <div class="tournament-actions">
+                        {% if not tournament_info.tournament.active %}
+                        <form method="POST" action="{{ url_for('activate_tournament', tournament_id=tournament_info.tournament.id) }}" style="display: inline;">
+                            <button type="submit" class="action-btn btn-activate">
+                                <i class="fas fa-play"></i> Activate
+                            </button>
+                        </form>
+                        {% else %}
+                        <form method="POST" action="{{ url_for('deactivate_tournament', tournament_id=tournament_info.tournament.id) }}" style="display: inline;">
+                            <button type="submit" class="action-btn btn-deactivate">
+                                <i class="fas fa-pause"></i> Deactivate
+                            </button>
+                        </form>
+                        {% endif %}
+
+                        <button class="action-btn btn-edit" onclick="editTournament({{ tournament_info.tournament.id }})">
+                            <i class="fas fa-edit"></i> Edit
+                        </button>
+
+                        <form method="POST" action="{{ url_for('delete_tournament', tournament_id=tournament_info.tournament.id) }}" style="display: inline;">
+                            <button type="submit" class="action-btn btn-delete" onclick="return confirm('Are you sure you want to delete this tournament? This action cannot be undone.')">
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </form>
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="empty-state">
+                    <i class="fas fa-trophy" style="font-size: 3rem; color: var(--text-muted); margin-bottom: 15px;"></i>
+                    <h3 style="color: var(--text-secondary); margin-bottom: 8px;">No Tournaments Yet</h3>
+                    <p style="color: var(--text-muted);">Create your first tournament using the form above.</p>
+                </div>
+            {% endif %}
+        </div>
     </div>
+
+    <script>
+        function editTournament(tournamentId) {
+            // You can implement edit functionality here
+            alert('Edit functionality coming soon! Tournament ID: ' + tournamentId);
+        }
+
+        // Set minimum date to current date/time
+        document.addEventListener('DOMContentLoaded', function() {
+            const now = new Date();
+            const isoString = now.toISOString().slice(0, 16);
+
+            const startTimeInput = document.getElementById('start_time');
+            const endTimeInput = document.getElementById('end_time');
+
+            startTimeInput.min = isoString;
+            endTimeInput.min = isoString;
+
+            // When start time changes, update end time minimum
+            startTimeInput.addEventListener('change', function() {
+                endTimeInput.min = this.value;
+                if (endTimeInput.value && endTimeInput.value <= this.value) {
+                    endTimeInput.value = '';
+                }
+            });
+        });
+    </script>
+
     {% include '_contact_footer.html' %}
-  </body>
+</body>
 </html>
 

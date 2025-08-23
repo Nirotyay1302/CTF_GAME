@@ -763,56 +763,111 @@ def scoreboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
 
-    # Get current user for highlighting
-    current_user = db.session.get(User, session['user_id'])
+    try:
+        # Get current user for highlighting
+        current_user = db.session.get(User, session['user_id'])
+        if not current_user:
+            session.clear()
+            return redirect(url_for('login'))
 
-    # Use cached data for better performance
-    leaderboard_data = get_from_cache('leaderboard', generate_leaderboard_data)
-    challenge_stats = get_from_cache('challenge_stats', generate_challenge_stats)
+        # Get filter parameters
+        category_filter = request.args.get('category', 'all')
+        time_filter = request.args.get('time', 'all')
 
-    total_users = User.query.filter(User.role != 'admin').count()
-    total_challenges = challenge_stats['total_challenges']
-    
-    # Count solves for non-admin users only to avoid including admin activity
-    total_solves = (
-        db.session.query(func.count(Solve.id))
-        .join(User, Solve.user_id == User.id)
-        .filter(User.role != 'admin')
-        .scalar()
-    ) or 0
-    
-    # Get only non-admin users and their solve/score info
-    users_data = (
-        db.session.query(
-            User.username,
-            func.count(Solve.id).label('solve_count'),
-            func.coalesce(func.sum(Challenge.points), 0).label('score')
+        # Use cached data for better performance
+        challenge_stats = get_from_cache('challenge_stats', generate_challenge_stats)
+
+        # Get basic stats
+        total_users = User.query.filter(User.role != 'admin').count()
+        total_challenges = challenge_stats['total_challenges']
+
+        # Count solves for non-admin users only
+        total_solves = (
+            db.session.query(func.count(Solve.id))
+            .join(User, Solve.user_id == User.id)
+            .filter(User.role != 'admin')
+            .scalar()
+        ) or 0
+
+        # Get users with their scores and solve counts
+        users_data = (
+            db.session.query(
+                User.id,
+                User.username,
+                User.score,
+                User.country,
+                func.count(Solve.id).label('solve_count'),
+                func.max(Solve.timestamp).label('last_solve_time')
+            )
+            .filter(User.role != 'admin')
+            .outerjoin(Solve, Solve.user_id == User.id)
+            .group_by(User.id, User.username, User.score, User.country)
+            .order_by(User.score.desc(), func.max(Solve.timestamp).asc().nullslast(), User.username)
+            .all()
         )
-        .filter(User.role != 'admin')  # Exclude admin users
-        .outerjoin(Solve, Solve.user_id == User.id)
-        .outerjoin(Challenge, Challenge.id == Solve.challenge_id)
-        .group_by(User.id, User.username)
-        .order_by(func.coalesce(func.sum(Challenge.points), 0).desc(), User.username)
-        .all()
-    )
-    
-    # Calculate average score
-    total_score = sum(user.score for user in users_data)
-    avg_score = total_score / len(users_data) if users_data else 0
-    
-    # Active tournament (for navigation hints)
-    active_tournament = Tournament.query.filter_by(active=True).first()
 
-    return render_template(
-        'scoreboard.html',
-        users=users_data,
-        total_users=total_users,
-        total_challenges=total_challenges,
-        total_solves=total_solves,
-        avg_score=avg_score,
-        active_tournament=active_tournament,
-        current_user=current_user
-    )
+        # Add ranking and format data
+        ranked_users = []
+        for rank, user_data in enumerate(users_data, 1):
+            user_dict = {
+                'rank': rank,
+                'id': user_data.id,
+                'username': user_data.username,
+                'score': user_data.score,
+                'country': user_data.country,
+                'solve_count': user_data.solve_count,
+                'last_solve_time': user_data.last_solve_time,
+                'is_current_user': user_data.id == current_user.id
+            }
+            ranked_users.append(user_dict)
+
+        # Calculate average score
+        total_score = sum(user['score'] for user in ranked_users)
+        avg_score = total_score / len(ranked_users) if ranked_users else 0
+
+        # Get categories for filter
+        categories = list(challenge_stats.get('categories', {}).keys())
+
+        # Get recent solves for activity feed
+        recent_solves = (
+            db.session.query(
+                Solve.timestamp,
+                User.username,
+                Challenge.title,
+                Challenge.points,
+                Challenge.category
+            )
+            .join(User, Solve.user_id == User.id)
+            .join(Challenge, Solve.challenge_id == Challenge.id)
+            .filter(User.role != 'admin')
+            .order_by(Solve.timestamp.desc())
+            .limit(10)
+            .all()
+        )
+
+        # Active tournament
+        active_tournament = Tournament.query.filter_by(active=True).first()
+
+        return render_template(
+            'scoreboard.html',
+            users=ranked_users,
+            total_users=total_users,
+            total_challenges=total_challenges,
+            total_solves=total_solves,
+            avg_score=avg_score,
+            active_tournament=active_tournament,
+            current_user=current_user,
+            categories=categories,
+            category_filter=category_filter,
+            time_filter=time_filter,
+            recent_solves=recent_solves,
+            challenge_stats=challenge_stats
+        )
+
+    except Exception as e:
+        print(f"Error in scoreboard: {e}")
+        flash('Error loading scoreboard', 'error')
+        return redirect(url_for('dashboard'))
 
 @app.route('/scoreboard/teams')
 def team_scoreboard():
@@ -1006,33 +1061,81 @@ def tournaments():
         flash('Unauthorized', 'error')
         return redirect(url_for('login'))
     if request.method == 'POST':
-        name = request.form.get('name', 'Tournament')
-        start = request.form.get('start_time')
-        end = request.form.get('end_time')
         try:
-            start_dt = datetime.fromisoformat(start)
-            end_dt = datetime.fromisoformat(end)
-        except Exception:
-            flash('Invalid date format. Use ISO format: YYYY-MM-DDTHH:MM:SS', 'error')
+            name = request.form.get('name', '').strip()
+            description = request.form.get('description', '').strip()
+            start = request.form.get('start_time')
+            end = request.form.get('end_time')
+            max_teams = request.form.get('max_teams', type=int) or 100
+            registration_open = request.form.get('registration_open') == 'on'
+
+            if not name:
+                flash('Tournament name is required', 'error')
+                return redirect(url_for('tournaments'))
+
+            if not start or not end:
+                flash('Start and end times are required', 'error')
+                return redirect(url_for('tournaments'))
+
+            try:
+                start_dt = datetime.fromisoformat(start.replace('T', ' '))
+                end_dt = datetime.fromisoformat(end.replace('T', ' '))
+            except Exception:
+                flash('Invalid date format. Please use the date picker.', 'error')
+                return redirect(url_for('tournaments'))
+
+            if start_dt >= end_dt:
+                flash('End time must be after start time', 'error')
+                return redirect(url_for('tournaments'))
+
+            tour = Tournament(
+                name=name,
+                description=description or None,
+                start_time=start_dt,
+                end_time=end_dt,
+                max_teams=max_teams,
+                registration_open=registration_open,
+                active=False
+            )
+
+            db.session.add(tour)
+            db.session.commit()
+
+            # Send admin notification email
+            notify_admin(
+                "Tournament Created",
+                f"Tournament '{name}' has been created\n"
+                f"Description: {description}\n"
+                f"Start Time: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"End Time: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
+                f"Max Teams: {max_teams}\n"
+                f"Registration Open: {registration_open}\n"
+                f"Created by: Admin\n"
+                f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
+            )
+
+            flash('Tournament created successfully!', 'success')
             return redirect(url_for('tournaments'))
-        tour = Tournament(name=name, start_time=start_dt, end_time=end_dt, active=False)
-        db.session.add(tour)
-        db.session.commit()
-        
-        # Send admin notification email
-        notify_admin(
-            "Tournament Created",
-            f"Tournament '{name}' has been created\n"
-            f"Start Time: {start_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"End Time: {end_dt.strftime('%Y-%m-%d %H:%M:%S')}\n"
-            f"Created by: Admin\n"
-            f"Timestamp: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        )
-        
-        flash('Tournament created', 'success')
-        return redirect(url_for('tournaments'))
-    all_t = Tournament.query.order_by(Tournament.start_time.desc()).all()
-    return render_template('tournaments.html', tournaments=all_t)
+
+        except Exception as e:
+            db.session.rollback()
+            flash(f'Error creating tournament: {str(e)}', 'error')
+            return redirect(url_for('tournaments'))
+
+    # Get all tournaments with statistics
+    tournaments_data = []
+    all_tournaments = Tournament.query.order_by(Tournament.start_time.desc()).all()
+
+    for tournament in all_tournaments:
+        tournament_info = {
+            'tournament': tournament,
+            'status': 'Active' if tournament.active else 'Inactive',
+            'time_status': 'Upcoming' if tournament.start_time > datetime.utcnow() else
+                         'Ongoing' if tournament.end_time > datetime.utcnow() else 'Ended'
+        }
+        tournaments_data.append(tournament_info)
+
+    return render_template('tournaments.html', tournaments_data=tournaments_data)
 
 @app.route('/tournaments/activate/<int:tournament_id>', methods=['POST'])
 def activate_tournament(tournament_id):
