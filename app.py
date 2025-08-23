@@ -67,6 +67,18 @@ try:
 
     print("CTF_GAME loaded successfully")
 
+    # Add a route to show database status
+    @app.route('/database-status')
+    def database_status():
+        from flask import jsonify
+        return jsonify({
+            'database_url_set': bool(os.environ.get('DATABASE_URL')),
+            'database_url_preview': os.environ.get('DATABASE_URL', 'Not set')[:50] + '...' if os.environ.get('DATABASE_URL') else 'Not set',
+            'database_uri': app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')[:100] + '...',
+            'database_initialized': db_success,
+            'instructions': 'If DATABASE_URL is not set, you need to manually configure the database in Render dashboard'
+        })
+
 except Exception as e:
     print(f"Failed to load CTF_GAME: {e}")
     traceback.print_exc()
@@ -76,10 +88,29 @@ except Exception as e:
 
     @app.route('/')
     def fallback():
+        return f"""
+        <h1>CTF Game - Database Configuration Issue</h1>
+        <p><strong>Error:</strong> {str(e)}</p>
+        <p><strong>DATABASE_URL set:</strong> {bool(os.environ.get('DATABASE_URL'))}</p>
+
+        <h2>To Fix This Issue:</h2>
+        <ol>
+            <li>Go to your Render dashboard</li>
+            <li>Navigate to your ctf-game service</li>
+            <li>Go to Environment tab</li>
+            <li>Manually add DATABASE_URL environment variable</li>
+            <li>Get the connection string from your PostgreSQL database</li>
+        </ol>
+
+        <p><a href="/database-status">Check Database Status</a></p>
+        """
+
+    @app.route('/database-status')
+    def fallback_status():
         return jsonify({
-            'error': 'Failed to load main CTF application',
-            'message': str(e),
-            'database_url_set': bool(os.environ.get('DATABASE_URL'))
+            'error': 'Main app failed to load',
+            'database_url_set': bool(os.environ.get('DATABASE_URL')),
+            'message': str(e)
         })
 
 # This is what gunicorn will use
