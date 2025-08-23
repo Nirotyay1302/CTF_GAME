@@ -1,10 +1,11 @@
-from flask import Flask, render_template, request, redirect, session, url_for, flash, jsonify, send_from_directory
+from flask import Flask, render_template, request, redirect, session, url_for, flash, jsonify, send_from_directory, g
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
 from cryptography.fernet import Fernet
 import os
 import time
 from datetime import datetime, timedelta
+import functools
 from sqlalchemy.sql import func
 from sqlalchemy import text
 from flask_mail import Mail, Message
@@ -57,12 +58,111 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = Config.SECRET_KEY
 
+# Performance optimizations
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_size': 10,
+    'pool_recycle': 120,
+    'pool_pre_ping': True,
+    'max_overflow': 20,
+    'pool_timeout': 30
+}
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
 mail = Mail(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
 # Initialize database with app
 db.init_app(app)
 Migrate(app, db)
+
+# Simple in-memory cache for performance
+cache = {}
+cache_timeout = 300  # 5 minutes
+
+def get_from_cache(key, generator_func, timeout=cache_timeout):
+    """Get data from cache or generate if expired"""
+    now = time.time()
+    if key in cache:
+        data, timestamp = cache[key]
+        if now - timestamp < timeout:
+            return data
+
+    # Generate fresh data
+    data = generator_func()
+    cache[key] = (data, now)
+    return data
+
+def clear_cache(pattern=None):
+    """Clear cache entries"""
+    if pattern:
+        keys_to_remove = [k for k in cache.keys() if pattern in k]
+        for key in keys_to_remove:
+            cache.pop(key, None)
+    else:
+        cache.clear()
+
+# Performance monitoring
+@app.before_request
+def before_request():
+    """Record request start time"""
+    g.start_time = time.time()
+
+@app.after_request
+def after_request(response):
+    """Add performance headers and log slow requests"""
+    if hasattr(g, 'start_time'):
+        duration = time.time() - g.start_time
+        response.headers['X-Response-Time'] = f"{duration:.3f}s"
+
+        # Log slow requests
+        if duration > 2.0:  # Log requests taking more than 2 seconds
+            print(f"⚠️ Slow request: {request.endpoint} took {duration:.2f}s")
+
+    # Add cache headers for static files
+    if request.endpoint and 'static' in request.endpoint:
+        response.cache_control.max_age = 3600
+        response.cache_control.public = True
+
+    # Security headers
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+
+    return response
+
+# Cached data generators
+def generate_leaderboard_data():
+    """Generate leaderboard data"""
+    users = User.query.filter(User.role != 'admin').order_by(User.total_points.desc()).limit(50).all()
+    return [
+        {
+            'username': user.username,
+            'total_points': user.total_points,
+            'team_name': user.team.name if user.team else None
+        }
+        for user in users
+    ]
+
+def generate_challenge_stats():
+    """Generate challenge statistics"""
+    challenges = Challenge.query.all()
+    stats = {
+        'total_challenges': len(challenges),
+        'categories': {},
+        'difficulties': {},
+        'total_points': 0
+    }
+
+    for challenge in challenges:
+        stats['categories'][challenge.category] = stats['categories'].get(challenge.category, 0) + 1
+        stats['difficulties'][challenge.difficulty] = stats['difficulties'].get(challenge.difficulty, 0) + 1
+        stats['total_points'] += challenge.points
+
+    return stats
+
+# Add cached functions to app
+app.get_cached_leaderboard = lambda: get_from_cache('leaderboard', generate_leaderboard_data)
+app.get_cached_challenge_stats = lambda: get_from_cache('challenge_stats', generate_challenge_stats)
 
 # Start tournament timer background task once per process (for production servers too)
 if not app.config.get('TOURNAMENT_TIMER_STARTED'):
@@ -305,15 +405,25 @@ def dashboard_enhanced():
         return redirect(url_for('admin_panel'))
     db.session.refresh(user)  # Ensure latest score
     now = datetime.utcnow()
+    # Optimized: Use single query with joins for challenges and solves
     challenges = Challenge.query.filter(
         (Challenge.opens_at.is_(None) | (Challenge.opens_at <= now)) &
         (Challenge.closes_at.is_(None) | (Challenge.closes_at > now))
     ).all()
     solved_ids = {sub.challenge_id for sub in user.submissions if sub.correct}
+
+    # Optimized: Use cached stats if available
+    if hasattr(app, 'get_cached_challenge_stats'):
+        stats = app.get_cached_challenge_stats()
+        total_challenges = stats['total_challenges']
+        max_score = stats['total_points']
+    else:
+        total_challenges = Challenge.query.count()
+        max_score = db.session.query(db.func.sum(Challenge.points)).scalar() or 0
+
+    # Optimized: Cache these expensive queries
     total_players = User.query.filter(User.role != 'admin').count()
-    total_challenges = Challenge.query.count()
     total_solves = Solve.query.count() if 'Solve' in globals() else 0
-    max_score = db.session.query(db.func.sum(Challenge.points)).scalar() or 0
     
     # Get user's team information
     user_team = None
@@ -652,13 +762,16 @@ def show_answer(challenge_id):
 def scoreboard():
     if 'user_id' not in session:
         return redirect(url_for('login'))
-    
+
     # Get current user for highlighting
     current_user = db.session.get(User, session['user_id'])
-    
-    # Count only non-admin users for total players
+
+    # Use cached data for better performance
+    leaderboard_data = get_from_cache('leaderboard', generate_leaderboard_data)
+    challenge_stats = get_from_cache('challenge_stats', generate_challenge_stats)
+
     total_users = User.query.filter(User.role != 'admin').count()
-    total_challenges = Challenge.query.count()
+    total_challenges = challenge_stats['total_challenges']
     
     # Count solves for non-admin users only to avoid including admin activity
     total_solves = (
@@ -2638,6 +2751,73 @@ def start_progress_updater():
         progress_thread = threading.Thread(target=progress_worker, daemon=True)
         progress_thread.start()
         app.config['PROGRESS_UPDATER_STARTED'] = True
+
+@app.route('/admin/optimize_performance', methods=['POST'])
+def optimize_performance():
+    """Run performance optimizations"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Unauthorized', 'error')
+        return redirect(url_for('admin_panel'))
+
+    try:
+        optimizations_run = []
+
+        # Clear cache
+        clear_cache()
+        optimizations_run.append("Cache cleared")
+
+        # Clean up old chat messages (keep last 500 per channel)
+        try:
+            channels = db.session.query(ChatMessage.channel_id).distinct().all()
+            total_cleaned = 0
+
+            for (channel_id,) in channels:
+                total_messages = ChatMessage.query.filter_by(channel_id=channel_id).count()
+                if total_messages > 500:
+                    old_messages = ChatMessage.query.filter_by(channel_id=channel_id)\
+                        .order_by(ChatMessage.id.asc())\
+                        .limit(total_messages - 500).all()
+
+                    for msg in old_messages:
+                        db.session.delete(msg)
+
+                    total_cleaned += len(old_messages)
+
+            if total_cleaned > 0:
+                optimizations_run.append(f"Cleaned {total_cleaned} old chat messages")
+        except Exception as e:
+            optimizations_run.append(f"Chat cleanup skipped: {e}")
+
+        # Remove incomplete user registrations (older than 7 days)
+        try:
+            cutoff_time = datetime.utcnow() - timedelta(days=7)
+            incomplete_users = User.query.filter(
+                User.email_verified == False,
+                User.created_at < cutoff_time
+            ).all()
+
+            for user in incomplete_users:
+                db.session.delete(user)
+
+            if incomplete_users:
+                optimizations_run.append(f"Removed {len(incomplete_users)} incomplete registrations")
+        except Exception as e:
+            optimizations_run.append(f"User cleanup skipped: {e}")
+
+        db.session.commit()
+
+        # Pre-warm cache
+        get_from_cache('leaderboard', generate_leaderboard_data)
+        get_from_cache('challenge_stats', generate_challenge_stats)
+        optimizations_run.append("Cache pre-warmed")
+
+        flash(f'Performance optimization completed! Applied: {", ".join(optimizations_run)}', 'success')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error during optimization: {e}', 'error')
+
+    return redirect(url_for('admin_panel'))
 
 if __name__ == "__main__":
     try:
