@@ -21,9 +21,11 @@ class Config:
         # Use SQLite for local development
         DATABASE_URL = 'sqlite:///instance/ctf.sqlite'
     else:
-        # Handle PostgreSQL URL from Render (fix postgres:// to postgresql://)
+        # Handle PostgreSQL URL from Render and configure for psycopg3
         if DATABASE_URL.startswith('postgres://'):
-            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql+psycopg://', 1)
+        elif DATABASE_URL.startswith('postgresql://'):
+            DATABASE_URL = DATABASE_URL.replace('postgresql://', 'postgresql+psycopg://', 1)
 
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False

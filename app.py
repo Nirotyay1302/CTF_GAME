@@ -21,6 +21,23 @@ else:
 
 try:
     print("Importing CTF_GAME...")
+
+    # Test PostgreSQL drivers before importing
+    database_url = os.environ.get('DATABASE_URL', '')
+    if 'postgresql' in database_url:
+        print("Testing PostgreSQL drivers...")
+        try:
+            import psycopg
+            print("psycopg (v3) available")
+        except ImportError:
+            print("psycopg (v3) not available")
+
+        try:
+            import psycopg2
+            print("psycopg2 available")
+        except ImportError:
+            print("psycopg2 not available")
+
     from CTF_GAME import app, db
     print("Successfully imported CTF_GAME components")
 
