@@ -415,6 +415,16 @@
                   <form method="POST" action="{{ url_for('create_50_challenges') }}" style="display:inline-flex; gap:8px; align-items:center; margin-top:8px;">
                     <button type="submit" style="background:var(--accent-warning); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:500; cursor:pointer;" onclick="return confirm('This will create 50 comprehensive CTF challenges covering all categories and difficulties. This may take a moment. Continue?')">🎯 Create 50 Challenges</button>
                   </form>
+
+                  <div style="margin-top:16px; padding:16px; background:var(--card-bg); border-radius:8px; border:1px solid var(--card-border);">
+                    <h4 style="margin:0 0 12px 0; color:var(--text-primary);">🚀 App Management</h4>
+                    <div style="display:flex; gap:8px; flex-wrap:wrap;">
+                      <form method="POST" action="{{ url_for('update_app') }}" style="display:inline;">
+                        <button type="submit" style="background:var(--accent-success); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:500; cursor:pointer;" onclick="return confirm('This will run comprehensive app updates including database optimization, security updates, and feature enhancements. Continue?')">🔄 Update App</button>
+                      </form>
+                      <a href="{{ url_for('app_info') }}" style="background:var(--accent-info); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:500; text-decoration:none; display:inline-block;">📊 App Info</a>
+                    </div>
+                  </div>
                 </div>
             </div>
 

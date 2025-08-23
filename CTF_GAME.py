@@ -1212,6 +1212,89 @@ def create_50_challenges():
 
     return redirect(url_for('admin_panel'))
 
+@app.route('/admin/update_app', methods=['POST'])
+def update_app():
+    """Run comprehensive app updates"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Unauthorized', 'error')
+        return redirect(url_for('admin_panel'))
+
+    try:
+        # Import and run the app updates
+        from app_updates import main as run_updates
+
+        # Capture the output (in a real implementation, you'd want better logging)
+        import io
+        import sys
+        from contextlib import redirect_stdout
+
+        output_buffer = io.StringIO()
+        with redirect_stdout(output_buffer):
+            run_updates()
+
+        output = output_buffer.getvalue()
+
+        # Count successful updates
+        success_count = output.count('✅')
+        total_updates = output.count('🔄 Running:')
+
+        if success_count > 0:
+            flash(f'App update completed! {success_count}/{total_updates} updates successful.', 'success')
+            notify_admin('App Updated', f'Comprehensive app update completed with {success_count} successful updates.')
+        else:
+            flash('App update completed with warnings. Check logs for details.', 'warning')
+
+    except Exception as e:
+        flash(f'Error running app updates: {e}', 'error')
+
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/app_info')
+def app_info():
+    """Display comprehensive app information"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Unauthorized', 'error')
+        return redirect(url_for('admin_panel'))
+
+    # Gather comprehensive app information
+    app_info = {
+        'version': '2.0.0',
+        'last_updated': datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S'),
+        'database_stats': {
+            'users': User.query.count(),
+            'challenges': Challenge.query.count(),
+            'teams': Team.query.count(),
+            'tournaments': Tournament.query.count(),
+            'solves': Solve.query.count(),
+            'chat_messages': ChatMessage.query.count(),
+            'chat_channels': ChatChannel.query.count()
+        },
+        'features': [
+            'Real-time chat system',
+            'Tournament management',
+            'Team collaboration',
+            'Dynamic challenge generation',
+            'Advanced admin panel',
+            'Email notifications',
+            'User profiles with avatars',
+            'Comprehensive leaderboards',
+            'Challenge hint system',
+            'Export/import functionality'
+        ],
+        'security_features': [
+            'Password hashing',
+            'Session management',
+            'CSRF protection ready',
+            'SQL injection prevention',
+            'XSS protection',
+            'Encrypted flag storage',
+            'Input validation',
+            'Role-based access control'
+        ]
+    }
+
+    return render_template('admin_app_info.html', app_info=app_info)
+
 @app.route('/admin/generate_challenge', methods=['POST'])
 def generate_dynamic_challenge():
     if 'user_id' not in session or session.get('role') != 'admin':
