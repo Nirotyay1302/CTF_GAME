@@ -1,25 +1,86 @@
 #!/usr/bin/env python3
 """
-WSGI entry point for CTF Game application
-This file is used by gunicorn and other WSGI servers
+WSGI entry point for CTF Game application - Render auto-detection version
 """
 
 import os
-from CTF_GAME import app, db
+import sys
+import traceback
 
-# Create database tables if they don't exist
-def create_tables():
-    """Create database tables if they don't exist"""
-    try:
-        with app.app_context():
-            print("Creating database tables...")
-            db.create_all()
-            print("Database tables created successfully")
-    except Exception as e:
-        print(f"Error creating database tables: {e}")
+print("=== APP.PY STARTING ===")
+print(f"Python version: {sys.version}")
+print(f"Working directory: {os.getcwd()}")
 
-# Initialize database on startup
-create_tables()
+# Check DATABASE_URL
+database_url = os.environ.get('DATABASE_URL')
+print(f"DATABASE_URL set: {bool(database_url)}")
+if database_url:
+    print(f"DATABASE_URL preview: {database_url[:50]}...")
+else:
+    print("WARNING: DATABASE_URL not set - will use SQLite fallback")
+
+try:
+    print("Importing CTF_GAME...")
+    from CTF_GAME import app, db
+    print("Successfully imported CTF_GAME components")
+
+    # Create database tables if they don't exist
+    def create_tables():
+        """Create database tables if they don't exist"""
+        try:
+            with app.app_context():
+                print("Creating database tables...")
+                print(f"Database URI: {app.config.get('SQLALCHEMY_DATABASE_URI', 'Not set')[:100]}...")
+
+                # Import models to ensure they're registered
+                from models import User, Challenge, Solve, Team, Tournament
+
+                # Test database connection first
+                try:
+                    result = db.session.execute(db.text('SELECT 1'))
+                    result.close()
+                    print("Database connection successful")
+                except Exception as conn_error:
+                    print(f"Database connection failed: {conn_error}")
+                    return False
+
+                db.create_all()
+                print("Database tables created successfully")
+                return True
+        except Exception as e:
+            print(f"Error creating database tables: {e}")
+            traceback.print_exc()
+            return False
+
+    # Initialize database on startup
+    print("Initializing database...")
+    db_success = create_tables()
+    if not db_success:
+        print("WARNING: Database initialization failed - app may not work correctly")
+
+    # Configure Flask app for production
+    app.config['DEBUG'] = False
+    app.config['TESTING'] = False
+
+    # Override any problematic configurations
+    app.config['WTF_CSRF_ENABLED'] = False  # Disable CSRF for now
+
+    print("CTF_GAME loaded successfully")
+
+except Exception as e:
+    print(f"Failed to load CTF_GAME: {e}")
+    traceback.print_exc()
+    # Create a fallback app
+    from flask import Flask, jsonify
+    app = Flask(__name__)
+
+    @app.route('/')
+    def fallback():
+        return jsonify({
+            'error': 'Failed to load main CTF application',
+            'message': str(e),
+            'database_url_set': bool(os.environ.get('DATABASE_URL'))
+        })
 
 # This is what gunicorn will use
 if __name__ == "__main__":
