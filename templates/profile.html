@@ -114,10 +114,20 @@
 
                     <div class="form-group">
                         <label for="profile_picture">Profile Picture</label>
+                        {% if user.profile_picture %}
+                        <div class="current-picture">
+                            <img src="{{ url_for('profile_picture', filename=user.profile_picture) }}" alt="Current Profile Picture" style="max-width: 150px; max-height: 150px; border-radius: 8px; margin-bottom: 10px;">
+                            <div>
+                                <button type="button" onclick="deleteProfilePicture()" class="delete-picture-btn" style="background: #dc3545; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; font-size: 12px;">
+                                    <i class="fas fa-trash"></i> Delete Picture
+                                </button>
+                            </div>
+                        </div>
+                        {% endif %}
                         <div class="file-upload-container">
-                            <input type="file" id="profile_picture" name="profile_picture" accept="image/*">
+                            <input type="file" id="profile_picture" name="profile_picture" accept="image/*" onchange="previewImage(this)">
                             <div class="file-upload-info">
-                                <p>Supported formats: PNG, JPG, JPEG, GIF</p>
+                                <p>Supported formats: PNG, JPG, JPEG, GIF, WebP (Max 5MB)</p>
                                 <p>Maximum size: 5MB</p>
                             </div>
                         </div>
@@ -149,6 +159,98 @@
 
     <script src="{{ url_for('static', filename='theme.js') }}"></script>
     <script src="{{ url_for('static', filename='profile.js') }}"></script>
+
+    <script>
+        // Image preview functionality
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    // Create or update preview
+                    let preview = document.getElementById('image-preview');
+                    if (!preview) {
+                        preview = document.createElement('div');
+                        preview.id = 'image-preview';
+                        preview.style.marginTop = '10px';
+                        input.parentNode.appendChild(preview);
+                    }
+
+                    preview.innerHTML = `
+                        <img src="${e.target.result}" alt="Preview" style="max-width: 150px; max-height: 150px; border-radius: 8px; border: 2px solid #ddd;">
+                        <p style="font-size: 12px; color: #666; margin-top: 5px;">Preview - Click "Save Changes" to upload</p>
+                    `;
+                };
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        // Delete profile picture functionality
+        function deleteProfilePicture() {
+            if (confirm('Are you sure you want to delete your profile picture?')) {
+                fetch('/profile/picture/delete', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        // Reload the page to show changes
+                        window.location.reload();
+                    } else {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                    }
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    alert('Error deleting profile picture');
+                });
+            }
+        }
+
+        // Form validation
+        document.addEventListener('DOMContentLoaded', function() {
+            const form = document.querySelector('.profile-form');
+            const fileInput = document.getElementById('profile_picture');
+
+            // File size validation
+            fileInput.addEventListener('change', function() {
+                const file = this.files[0];
+                if (file) {
+                    const maxSize = 5 * 1024 * 1024; // 5MB
+                    if (file.size > maxSize) {
+                        alert('File too large! Please select an image smaller than 5MB.');
+                        this.value = '';
+                        return;
+                    }
+
+                    // Check file type
+                    const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp'];
+                    if (!allowedTypes.includes(file.type)) {
+                        alert('Invalid file type! Please select a PNG, JPG, JPEG, GIF, or WebP image.');
+                        this.value = '';
+                        return;
+                    }
+                }
+            });
+
+            // Show loading state on form submit
+            form.addEventListener('submit', function() {
+                const submitBtn = form.querySelector('button[type="submit"]');
+                const originalText = submitBtn.innerHTML;
+                submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Saving...';
+                submitBtn.disabled = true;
+
+                // Re-enable after 10 seconds as fallback
+                setTimeout(() => {
+                    submitBtn.innerHTML = originalText;
+                    submitBtn.disabled = false;
+                }, 10000);
+            });
+        });
+    </script>
+
     {% include '_contact_footer.html' %}
 </body>
 </html>

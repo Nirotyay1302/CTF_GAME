@@ -2311,72 +2311,310 @@ def profile():
     if 'user_id' not in session:
         flash('Please log in to view your profile', 'error')
         return redirect(url_for('login'))
-    
+
     user = db.session.get(User, session['user_id'])
-    
+    if not user:
+        flash('User not found', 'error')
+        session.clear()
+        return redirect(url_for('login'))
+
     if request.method == 'POST':
         try:
+            print(f"Profile update request for user {user.username}")
+
             # Update basic profile information
-            user.first_name = request.form.get('first_name', '').strip()
-            user.last_name = request.form.get('last_name', '').strip()
-            user.bio = request.form.get('bio', '').strip()
-            user.country = request.form.get('country', '').strip()
-            user.timezone = request.form.get('timezone', '').strip()
-            user.gender = request.form.get('gender', '').strip()
-            
+            old_values = {
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'bio': user.bio,
+                'country': user.country,
+                'timezone': user.timezone,
+                'gender': user.gender,
+                'date_of_birth': user.date_of_birth,
+                'profile_picture': user.profile_picture
+            }
+
+            user.first_name = request.form.get('first_name', '').strip() or None
+            user.last_name = request.form.get('last_name', '').strip() or None
+            user.bio = request.form.get('bio', '').strip() or None
+            user.country = request.form.get('country', '').strip() or None
+            user.timezone = request.form.get('timezone', '').strip() or None
+            user.gender = request.form.get('gender', '').strip() or None
+
+            print(f"Updated fields: first_name={user.first_name}, last_name={user.last_name}")
+
             # Handle date of birth
             dob_str = request.form.get('date_of_birth', '').strip()
             if dob_str:
                 try:
                     user.date_of_birth = datetime.strptime(dob_str, '%Y-%m-%d').date()
+                    print(f"Updated date_of_birth: {user.date_of_birth}")
                 except ValueError:
                     flash('Invalid date format for date of birth', 'error')
                     return redirect(url_for('profile'))
-            
+            else:
+                user.date_of_birth = None
+
             # Handle profile picture upload
+            picture_updated = False
             if 'profile_picture' in request.files:
                 file = request.files['profile_picture']
                 if file and file.filename:
+                    print(f"Processing profile picture: {file.filename}")
+
                     # Check file type
-                    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif'}
+                    allowed_extensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
                     if '.' in file.filename and file.filename.rsplit('.', 1)[1].lower() in allowed_extensions:
                         # Create uploads directory if it doesn't exist
                         upload_dir = os.path.join(app.instance_path, 'profile_pictures')
                         os.makedirs(upload_dir, exist_ok=True)
-                        
+                        print(f"Upload directory: {upload_dir}")
+
+                        # Remove old profile picture if exists
+                        if user.profile_picture:
+                            old_filepath = os.path.join(upload_dir, user.profile_picture)
+                            if os.path.exists(old_filepath):
+                                try:
+                                    os.remove(old_filepath)
+                                    print(f"Removed old profile picture: {old_filepath}")
+                                except Exception as e:
+                                    print(f"Could not remove old picture: {e}")
+
                         # Generate unique filename
-                        filename = f"profile_{user.id}_{int(time.time())}.{file.filename.rsplit('.', 1)[1].lower()}"
+                        file_extension = file.filename.rsplit('.', 1)[1].lower()
+                        filename = f"profile_{user.id}_{int(time.time())}.{file_extension}"
                         filepath = os.path.join(upload_dir, filename)
-                        
+
+                        # Check file size (limit to 5MB)
+                        file.seek(0, 2)  # Seek to end
+                        file_size = file.tell()
+                        file.seek(0)  # Reset to beginning
+
+                        if file_size > 5 * 1024 * 1024:  # 5MB limit
+                            flash('File too large. Please upload an image smaller than 5MB.', 'error')
+                            return redirect(url_for('profile'))
+
                         # Save file
                         file.save(filepath)
-                        
+                        print(f"Saved profile picture to: {filepath}")
+
                         # Update user profile picture path
                         user.profile_picture = filename
-                        
-                        flash('Profile picture updated successfully!', 'success')
+                        picture_updated = True
+
+                        print(f"Updated profile_picture field: {user.profile_picture}")
                     else:
-                        flash('Invalid file type. Please upload PNG, JPG, JPEG, or GIF files only.', 'error')
+                        flash('Invalid file type. Please upload PNG, JPG, JPEG, GIF, or WebP files only.', 'error')
                         return redirect(url_for('profile'))
-            
+
+            # Check what changed
+            changes = []
+            for field, old_value in old_values.items():
+                new_value = getattr(user, field)
+                if old_value != new_value:
+                    changes.append(f"{field}: '{old_value}' -> '{new_value}'")
+
+            if changes:
+                print(f"Changes detected: {changes}")
+            else:
+                print("No changes detected")
+
+            # Commit changes to database
             db.session.commit()
-            flash('Profile updated successfully!', 'success')
+            print("Database commit successful")
+
+            # Clear cache to ensure fresh data
+            clear_cache('leaderboard')
+
+            success_message = 'Profile updated successfully!'
+            if picture_updated:
+                success_message += ' Profile picture uploaded!'
+
+            flash(success_message, 'success')
             return redirect(url_for('profile'))
-            
+
         except Exception as e:
             db.session.rollback()
+            print(f"Error updating profile: {str(e)}")
+            import traceback
+            traceback.print_exc()
             flash(f'Error updating profile: {str(e)}', 'error')
-    
-    return render_template('profile.html', user=user)
+
+    # Get additional data for template
+    try:
+        # Get solve count
+        solves_count = len([sub for sub in user.submissions if sub.correct]) if hasattr(user, 'submissions') else 0
+
+        # Get team info
+        team_name = None
+        team_role = None
+        if hasattr(user, 'team_membership') and user.team_membership:
+            team_name = user.team_membership.team.name
+            team_role = user.team_membership.role
+
+        return render_template('profile.html',
+                             user=user,
+                             solves_count=solves_count,
+                             team_name=team_name,
+                             team_role=team_role)
+    except Exception as e:
+        print(f"Error preparing profile data: {e}")
+        return render_template('profile.html',
+                             user=user,
+                             solves_count=0,
+                             team_name=None,
+                             team_role=None)
 
 @app.route('/profile/picture/<filename>')
 def profile_picture(filename):
     """Serve profile pictures"""
     if 'user_id' not in session:
         return '', 404
-    
-    upload_dir = os.path.join(app.instance_path, 'profile_pictures')
-    return send_from_directory(upload_dir, filename)
+
+    try:
+        upload_dir = os.path.join(app.instance_path, 'profile_pictures')
+        filepath = os.path.join(upload_dir, filename)
+
+        # Security check: ensure the file exists and is in the correct directory
+        if not os.path.exists(filepath) or not os.path.commonpath([upload_dir, filepath]) == upload_dir:
+            return '', 404
+
+        return send_from_directory(upload_dir, filename)
+    except Exception as e:
+        print(f"Error serving profile picture {filename}: {e}")
+        return '', 404
+
+@app.route('/profile/picture/delete', methods=['POST'])
+def delete_profile_picture():
+    """Delete user's profile picture"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        user = db.session.get(User, session['user_id'])
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        if user.profile_picture:
+            # Remove file from filesystem
+            upload_dir = os.path.join(app.instance_path, 'profile_pictures')
+            filepath = os.path.join(upload_dir, user.profile_picture)
+
+            if os.path.exists(filepath):
+                os.remove(filepath)
+                print(f"Deleted profile picture file: {filepath}")
+
+            # Remove from database
+            user.profile_picture = None
+            db.session.commit()
+
+            flash('Profile picture deleted successfully!', 'success')
+            return jsonify({'success': True, 'message': 'Profile picture deleted'})
+        else:
+            return jsonify({'error': 'No profile picture to delete'}), 400
+
+    except Exception as e:
+        db.session.rollback()
+        print(f"Error deleting profile picture: {e}")
+        return jsonify({'error': f'Error deleting profile picture: {str(e)}'}), 500
+
+@app.route('/admin/users/<int:user_id>/profile')
+def admin_view_user_profile(user_id):
+    """Admin route to view any user's profile"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Unauthorized', 'error')
+        return redirect(url_for('admin_panel'))
+
+    try:
+        user = User.query.get_or_404(user_id)
+
+        # Get additional user data
+        solves_count = len([sub for sub in user.submissions if sub.correct]) if hasattr(user, 'submissions') else 0
+
+        team_name = None
+        team_role = None
+        if hasattr(user, 'team_membership') and user.team_membership:
+            team_name = user.team_membership.team.name
+            team_role = user.team_membership.role
+
+        user_data = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'role': user.role,
+            'score': user.score,
+            'first_name': user.first_name,
+            'last_name': user.last_name,
+            'date_of_birth': user.date_of_birth.isoformat() if user.date_of_birth else None,
+            'gender': user.gender,
+            'country': user.country,
+            'timezone': user.timezone,
+            'bio': user.bio,
+            'profile_picture': user.profile_picture,
+            'current_streak': user.current_streak,
+            'longest_streak': user.longest_streak,
+            'last_solve_date': user.last_solve_date.isoformat() if user.last_solve_date else None,
+            'solves_count': solves_count,
+            'team_name': team_name,
+            'team_role': team_role
+        }
+
+        return jsonify({
+            'success': True,
+            'user': user_data
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Error fetching user profile: {str(e)}'
+        }), 500
+
+@app.route('/profile/test')
+def test_profile():
+    """Test route to check profile functionality"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        user = db.session.get(User, session['user_id'])
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
+
+        # Test data
+        test_data = {
+            'user_id': user.id,
+            'username': user.username,
+            'profile_fields': {
+                'first_name': user.first_name,
+                'last_name': user.last_name,
+                'email': user.email,
+                'bio': user.bio,
+                'country': user.country,
+                'timezone': user.timezone,
+                'gender': user.gender,
+                'date_of_birth': user.date_of_birth.isoformat() if user.date_of_birth else None,
+                'profile_picture': user.profile_picture,
+                'score': user.score,
+                'current_streak': user.current_streak,
+                'longest_streak': user.longest_streak
+            },
+            'profile_picture_url': url_for('profile_picture', filename=user.profile_picture) if user.profile_picture else None,
+            'upload_directory': os.path.join(app.instance_path, 'profile_pictures'),
+            'upload_directory_exists': os.path.exists(os.path.join(app.instance_path, 'profile_pictures'))
+        }
+
+        return jsonify({
+            'success': True,
+            'message': 'Profile test successful',
+            'data': test_data
+        })
+
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Profile test failed: {str(e)}'
+        }), 500
 
 # Notification system routes
 @app.route('/notifications')
