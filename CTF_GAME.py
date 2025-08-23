@@ -824,6 +824,18 @@ def dashboard():
     """Main dashboard - now redirects to enhanced dashboard"""
     return redirect(url_for('dashboard_enhanced'))
 
+@app.route('/debug/session')
+def debug_session():
+    """Debug route to check session status"""
+    return jsonify({
+        'session_keys': list(session.keys()),
+        'user_id_present': 'user_id' in session,
+        'user_id': session.get('user_id'),
+        'username': session.get('username'),
+        'role': session.get('role'),
+        'session_permanent': session.permanent
+    })
+
 @app.route('/dashboard/fast')
 def dashboard_fast():
     """Ultra-fast dashboard with minimal loading"""
@@ -836,12 +848,30 @@ def dashboard_fast():
 @app.route('/dashboard/enhanced')
 def dashboard_enhanced():
     """Enhanced dashboard with modern UI and real-time features"""
+    # Debug session information
+    app.logger.info(f"Dashboard access attempt - Session keys: {list(session.keys())}")
+    app.logger.info(f"User ID in session: {'user_id' in session}")
+
     if 'user_id' not in session:
+        app.logger.warning("No user_id in session, redirecting to login")
+        flash("Please log in to access the dashboard.", "info")
         return redirect(url_for('login'))
-    user = db.session.get(User, session['user_id'])
-    if user.role == 'admin':
-        flash("Admins cannot play the game. You have access to admin controls only.", "info")
-        return redirect(url_for('admin_panel'))
+
+    try:
+        user = db.session.get(User, session['user_id'])
+        if not user:
+            app.logger.error(f"User {session['user_id']} not found in database")
+            session.clear()
+            flash("Your account is no longer valid. Please log in again.", "error")
+            return redirect(url_for('login'))
+
+        if user.role == 'admin':
+            flash("Admins cannot play the game. You have access to admin controls only.", "info")
+            return redirect(url_for('admin_panel'))
+    except Exception as e:
+        app.logger.error(f"Database error in dashboard: {e}")
+        flash("Database error. Please try again.", "error")
+        return redirect(url_for('login'))
     db.session.refresh(user)  # Ensure latest score
     now = datetime.utcnow()
     # Super-optimized dashboard data loading with aggressive caching
