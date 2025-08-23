@@ -789,8 +789,14 @@ def logout():
 @app.before_request
 def check_session_security():
     """Check session security and validity"""
-    # Skip security checks for static files and auth routes
-    if request.endpoint in ['static', 'login', 'signup', 'index', 'health_check']:
+    # Skip security checks for static files, auth routes, and debug routes
+    skip_endpoints = [
+        'static', 'login', 'signup', 'index', 'health_check',
+        'debug_session', 'dashboard_simple', 'dashboard_modern',
+        'api_dashboard_stats'
+    ]
+
+    if request.endpoint in skip_endpoints:
         return
 
     # Check if user is logged in
