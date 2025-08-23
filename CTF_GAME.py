@@ -58,48 +58,122 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = Config.SECRET_KEY
 
-# Performance optimizations
+# Aggressive performance optimizations for speed
 app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 10,
-    'pool_recycle': 120,
+    'pool_size': 20,           # Increased pool size
+    'pool_recycle': 300,       # Longer recycle time
     'pool_pre_ping': True,
-    'max_overflow': 20,
-    'pool_timeout': 30
+    'max_overflow': 30,        # Higher overflow
+    'pool_timeout': 10,        # Faster timeout
+    'echo': False,             # Disable SQL logging
+    'connect_args': {
+        'connect_timeout': 5,
+        'application_name': 'ctf_app_fast'
+    }
 }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['SQLALCHEMY_RECORD_QUERIES'] = False  # Disable query recording
+
+# Template optimization for speed
+app.jinja_env.auto_reload = False
+app.jinja_env.cache_size = 1000  # Increased cache size
+app.jinja_env.optimized = True
 
 mail = Mail(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Initialize compression for faster responses
+try:
+    from flask_compress import Compress
+    app.config['COMPRESS_MIMETYPES'] = [
+        'text/html', 'text/css', 'text/xml', 'text/javascript',
+        'application/json', 'application/javascript', 'application/xml+rss',
+        'application/atom+xml', 'image/svg+xml'
+    ]
+    app.config['COMPRESS_LEVEL'] = 6
+    app.config['COMPRESS_MIN_SIZE'] = 500
+    Compress(app)
+    print("✅ Response compression enabled")
+except ImportError:
+    print("⚠️ Flask-Compress not available")
 
 # Initialize database with app
 db.init_app(app)
 Migrate(app, db)
 
-# Simple in-memory cache for performance
+# Aggressive multi-level caching for maximum speed
 cache = {}
-cache_timeout = 300  # 5 minutes
+cache_stats = {'hits': 0, 'misses': 0, 'sets': 0}
 
-def get_from_cache(key, generator_func, timeout=cache_timeout):
-    """Get data from cache or generate if expired"""
+# Different cache timeouts for different data types
+cache_timeouts = {
+    'leaderboard': 60,      # 1 minute - frequently changing
+    'challenge_stats': 180, # 3 minutes - moderately changing
+    'user_profile': 30,     # 30 seconds - user-specific
+    'challenge_list': 120,  # 2 minutes - semi-static
+    'team_stats': 240,      # 4 minutes - less frequently changing
+    'recent_solves': 15,    # 15 seconds - very dynamic
+    'dashboard_data': 45,   # 45 seconds - user dashboard
+    'admin_stats': 300,     # 5 minutes - admin data
+    'default': 120          # 2 minutes default
+}
+
+def get_from_cache(key, generator_func, timeout=None):
+    """Get data from cache or generate if expired - optimized for speed"""
     now = time.time()
+
+    # Determine timeout based on key prefix
+    if timeout is None:
+        key_prefix = key.split('_')[0] if '_' in key else 'default'
+        timeout = cache_timeouts.get(key_prefix, cache_timeouts['default'])
+
+    # Check cache first
     if key in cache:
         data, timestamp = cache[key]
         if now - timestamp < timeout:
+            cache_stats['hits'] += 1
             return data
 
-    # Generate fresh data
-    data = generator_func()
-    cache[key] = (data, now)
-    return data
+    # Cache miss - generate fresh data
+    cache_stats['misses'] += 1
+    try:
+        data = generator_func()
+        cache[key] = (data, now)
+        cache_stats['sets'] += 1
+
+        # Prevent cache from growing too large (memory optimization)
+        if len(cache) > 1000:
+            # Remove oldest 20% of entries
+            sorted_cache = sorted(cache.items(), key=lambda x: x[1][1])
+            for old_key, _ in sorted_cache[:200]:
+                cache.pop(old_key, None)
+
+        return data
+    except Exception as e:
+        print(f"Cache generation error for {key}: {e}")
+        return None
 
 def clear_cache(pattern=None):
-    """Clear cache entries"""
+    """Clear cache entries - optimized"""
     if pattern:
         keys_to_remove = [k for k in cache.keys() if pattern in k]
         for key in keys_to_remove:
             cache.pop(key, None)
     else:
         cache.clear()
+        cache_stats['hits'] = cache_stats['misses'] = cache_stats['sets'] = 0
+
+def get_cache_stats():
+    """Get cache performance statistics"""
+    total_requests = cache_stats['hits'] + cache_stats['misses']
+    hit_rate = (cache_stats['hits'] / total_requests * 100) if total_requests > 0 else 0
+    return {
+        'entries': len(cache),
+        'hits': cache_stats['hits'],
+        'misses': cache_stats['misses'],
+        'hit_rate': round(hit_rate, 2),
+        'total_requests': total_requests
+    }
 
 # Performance monitoring
 @app.before_request
@@ -109,24 +183,37 @@ def before_request():
 
 @app.after_request
 def after_request(response):
-    """Add performance headers and log slow requests"""
+    """Optimized response processing for maximum speed"""
     if hasattr(g, 'start_time'):
         duration = time.time() - g.start_time
         response.headers['X-Response-Time'] = f"{duration:.3f}s"
 
-        # Log slow requests
-        if duration > 2.0:  # Log requests taking more than 2 seconds
+        # Log slow requests (reduced threshold for better monitoring)
+        if duration > 1.0:  # Log requests taking more than 1 second
             print(f"⚠️ Slow request: {request.endpoint} took {duration:.2f}s")
 
-    # Add cache headers for static files
+    # Aggressive caching for static files
     if request.endpoint and 'static' in request.endpoint:
-        response.cache_control.max_age = 3600
+        response.cache_control.max_age = 86400  # 24 hours
+        response.cache_control.public = True
+        response.headers['Expires'] = (datetime.utcnow() + timedelta(days=1)).strftime('%a, %d %b %Y %H:%M:%S GMT')
+
+    # Cache API responses
+    if request.endpoint and 'api' in request.endpoint:
+        response.cache_control.max_age = 30  # 30 seconds for API
         response.cache_control.public = True
 
-    # Security headers
+    # Cache page responses
+    if request.endpoint in ['dashboard', 'scoreboard', 'challenges']:
+        response.cache_control.max_age = 60  # 1 minute for pages
+        response.cache_control.public = True
+
+    # Security headers (minimal for speed)
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
-    response.headers['X-XSS-Protection'] = '1; mode=block'
+
+    # Performance headers
+    response.headers['X-Cache-Status'] = 'HIT' if hasattr(g, 'cache_hit') else 'MISS'
 
     return response
 
@@ -394,6 +481,15 @@ def dashboard():
     """Main dashboard - now redirects to enhanced dashboard"""
     return redirect(url_for('dashboard_enhanced'))
 
+@app.route('/dashboard/fast')
+def dashboard_fast():
+    """Ultra-fast dashboard with minimal loading"""
+    if 'user_id' not in session:
+        return redirect(url_for('login'))
+
+    # Just render the template - data loaded via AJAX for maximum speed
+    return render_template('dashboard_fast.html')
+
 @app.route('/dashboard/enhanced')
 def dashboard_enhanced():
     """Enhanced dashboard with modern UI and real-time features"""
@@ -405,25 +501,67 @@ def dashboard_enhanced():
         return redirect(url_for('admin_panel'))
     db.session.refresh(user)  # Ensure latest score
     now = datetime.utcnow()
-    # Optimized: Use single query with joins for challenges and solves
-    challenges = Challenge.query.filter(
-        (Challenge.opens_at.is_(None) | (Challenge.opens_at <= now)) &
-        (Challenge.closes_at.is_(None) | (Challenge.closes_at > now))
-    ).all()
-    solved_ids = {sub.challenge_id for sub in user.submissions if sub.correct}
+    # Super-optimized dashboard data loading with aggressive caching
+    dashboard_cache_key = f"dashboard_data_{user.id}"
 
-    # Optimized: Use cached stats if available
-    if hasattr(app, 'get_cached_challenge_stats'):
-        stats = app.get_cached_challenge_stats()
-        total_challenges = stats['total_challenges']
-        max_score = stats['total_points']
-    else:
-        total_challenges = Challenge.query.count()
-        max_score = db.session.query(db.func.sum(Challenge.points)).scalar() or 0
+    def generate_dashboard_data():
+        # Single optimized query for challenges with solve status
+        challenges_query = db.session.query(
+            Challenge.id,
+            Challenge.title,
+            Challenge.description,
+            Challenge.points,
+            Challenge.category,
+            Challenge.difficulty,
+            Challenge.opens_at,
+            Challenge.closes_at,
+            Solve.id.isnot(None).label('is_solved')
+        ).outerjoin(
+            Solve, (Challenge.id == Solve.challenge_id) & (Solve.user_id == user.id)
+        ).filter(
+            (Challenge.opens_at.is_(None) | (Challenge.opens_at <= now)) &
+            (Challenge.closes_at.is_(None) | (Challenge.closes_at > now))
+        )
 
-    # Optimized: Cache these expensive queries
-    total_players = User.query.filter(User.role != 'admin').count()
-    total_solves = Solve.query.count() if 'Solve' in globals() else 0
+        challenges_data = challenges_query.all()
+        solved_ids = {c.id for c in challenges_data if c.is_solved}
+
+        return {
+            'challenges': challenges_data,
+            'solved_ids': solved_ids,
+            'challenge_count': len(challenges_data),
+            'solved_count': len(solved_ids)
+        }
+
+    # Get cached dashboard data
+    dashboard_data = get_from_cache(dashboard_cache_key, generate_dashboard_data, timeout=45)
+
+    if not dashboard_data:
+        # Fallback to basic data if cache fails
+        challenges = Challenge.query.limit(50).all()  # Limit for speed
+        solved_ids = set()
+        dashboard_data = {
+            'challenges': challenges,
+            'solved_ids': solved_ids,
+            'challenge_count': len(challenges),
+            'solved_count': 0
+        }
+
+    # Get cached stats
+    stats_data = get_from_cache('challenge_stats', generate_challenge_stats, timeout=180)
+    total_challenges = stats_data.get('total_challenges', 0) if stats_data else dashboard_data['challenge_count']
+    max_score = stats_data.get('total_points', 0) if stats_data else 0
+
+    # Get cached counts
+    def generate_counts():
+        return {
+            'total_players': User.query.filter(User.role != 'admin').count(),
+            'total_solves': Solve.query.count() if 'Solve' in globals() else 0
+        }
+
+    counts_data = get_from_cache('player_counts', generate_counts, timeout=120)
+    total_players = counts_data.get('total_players', 0) if counts_data else 0
+    total_solves = counts_data.get('total_solves', 0) if counts_data else 0
     
     # Get user's team information
     user_team = None
@@ -789,22 +927,49 @@ def scoreboard():
             .scalar()
         ) or 0
 
-        # Get users with their scores and solve counts
-        users_data = (
-            db.session.query(
+        # Super-optimized scoreboard query with caching
+        scoreboard_cache_key = f"scoreboard_{category_filter}_{time_filter}"
+
+        def generate_scoreboard_data():
+            # Optimized single query with minimal data transfer
+            base_query = db.session.query(
                 User.id,
                 User.username,
                 User.score,
                 User.country,
                 func.count(Solve.id).label('solve_count'),
                 func.max(Solve.timestamp).label('last_solve_time')
-            )
-            .filter(User.role != 'admin')
-            .outerjoin(Solve, Solve.user_id == User.id)
-            .group_by(User.id, User.username, User.score, User.country)
-            .order_by(User.score.desc(), func.max(Solve.timestamp).asc().nullslast(), User.username)
-            .all()
-        )
+            ).filter(User.role != 'admin')
+
+            # Apply time filter at database level for speed
+            if time_filter != 'all':
+                time_deltas = {
+                    'day': timedelta(days=1),
+                    'week': timedelta(weeks=1),
+                    'month': timedelta(days=30)
+                }
+                if time_filter in time_deltas:
+                    cutoff_time = datetime.utcnow() - time_deltas[time_filter]
+                    base_query = base_query.outerjoin(
+                        Solve, (Solve.user_id == User.id) & (Solve.timestamp >= cutoff_time)
+                    )
+                else:
+                    base_query = base_query.outerjoin(Solve, Solve.user_id == User.id)
+            else:
+                base_query = base_query.outerjoin(Solve, Solve.user_id == User.id)
+
+            # Group and order for maximum speed
+            users_data = base_query.group_by(
+                User.id, User.username, User.score, User.country
+            ).order_by(
+                User.score.desc(),
+                func.max(Solve.timestamp).asc().nullslast(),
+                User.username
+            ).limit(100).all()  # Limit to top 100 for speed
+
+            return users_data
+
+        users_data = get_from_cache(scoreboard_cache_key, generate_scoreboard_data, timeout=60)
 
         # Add ranking and format data
         ranked_users = []
@@ -3089,6 +3254,75 @@ def start_progress_updater():
         progress_thread.start()
         app.config['PROGRESS_UPDATER_STARTED'] = True
 
+# Ultra-fast API endpoints for maximum speed
+@app.route('/api/fast/dashboard')
+def api_fast_dashboard():
+    """Ultra-fast dashboard API endpoint"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        user_id = session['user_id']
+        cache_key = f"fast_dashboard_{user_id}"
+
+        def generate_fast_dashboard():
+            # Minimal query for maximum speed
+            user = db.session.query(User.id, User.username, User.score).filter_by(id=user_id).first()
+            if not user:
+                return None
+
+            # Get challenge count and solved count in one query
+            challenge_stats = db.session.query(
+                func.count(Challenge.id).label('total'),
+                func.count(Solve.id).label('solved')
+            ).outerjoin(
+                Solve, (Challenge.id == Solve.challenge_id) & (Solve.user_id == user_id)
+            ).first()
+
+            return {
+                'user': {'id': user.id, 'username': user.username, 'score': user.score},
+                'challenges': {'total': challenge_stats.total, 'solved': challenge_stats.solved},
+                'progress': round((challenge_stats.solved / challenge_stats.total * 100) if challenge_stats.total > 0 else 0, 1)
+            }
+
+        data = get_from_cache(cache_key, generate_fast_dashboard, timeout=30)
+
+        if data:
+            g.cache_hit = True
+            return jsonify({'success': True, 'data': data})
+        else:
+            return jsonify({'error': 'Failed to load dashboard data'}), 500
+
+    except Exception as e:
+        return jsonify({'error': f'Dashboard API error: {str(e)}'}), 500
+
+@app.route('/api/fast/leaderboard')
+def api_fast_leaderboard():
+    """Ultra-fast leaderboard API endpoint"""
+    try:
+        limit = min(int(request.args.get('limit', 10)), 50)  # Max 50 for speed
+        cache_key = f"fast_leaderboard_{limit}"
+
+        def generate_fast_leaderboard():
+            # Minimal query for top users
+            users = db.session.query(
+                User.username, User.score
+            ).filter(
+                User.role != 'admin'
+            ).order_by(
+                User.score.desc()
+            ).limit(limit).all()
+
+            return [{'username': u.username, 'score': u.score, 'rank': i+1}
+                   for i, u in enumerate(users)]
+
+        data = get_from_cache(cache_key, generate_fast_leaderboard, timeout=30)
+        g.cache_hit = True
+        return jsonify({'success': True, 'leaderboard': data})
+
+    except Exception as e:
+        return jsonify({'error': f'Leaderboard API error: {str(e)}'}), 500
+
 @app.route('/admin/optimize_performance', methods=['POST'])
 def optimize_performance():
     """Run performance optimizations"""
@@ -3145,6 +3379,85 @@ def optimize_performance():
     except Exception as e:
         db.session.rollback()
         flash(f'Error during optimization: {e}', 'error')
+
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/speed_optimize', methods=['POST'])
+def speed_optimize():
+    """Run aggressive speed optimizations"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Unauthorized', 'error')
+        return redirect(url_for('admin_panel'))
+
+    try:
+        optimizations_run = []
+
+        # Clear all caches for fresh start
+        clear_cache()
+        optimizations_run.append("All caches cleared")
+
+        # Create database indexes for speed
+        try:
+            index_commands = [
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_user_role_score ON \"user\"(role, score DESC);",
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_solve_user_challenge ON solve(user_id, challenge_id);",
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_solve_timestamp_desc ON solve(timestamp DESC);",
+                "CREATE INDEX CONCURRENTLY IF NOT EXISTS idx_challenge_category_points ON challenge(category, points DESC);",
+            ]
+
+            for command in index_commands:
+                try:
+                    db.engine.execute(command)
+                    optimizations_run.append(f"Database index created")
+                except Exception:
+                    pass  # Index may already exist
+
+        except Exception as e:
+            optimizations_run.append(f"Database optimization skipped: {str(e)[:50]}")
+
+        # Pre-warm critical caches
+        try:
+            get_from_cache('leaderboard', generate_leaderboard_data, timeout=60)
+            get_from_cache('challenge_stats', generate_challenge_stats, timeout=180)
+            optimizations_run.append("Critical caches pre-warmed")
+        except Exception as e:
+            optimizations_run.append(f"Cache warming failed: {str(e)[:50]}")
+
+        # Clean up old data for speed
+        try:
+            # Remove old chat messages (keep last 200 per channel)
+            channels = db.session.query(ChatMessage.channel_id).distinct().all()
+            total_cleaned = 0
+
+            for (channel_id,) in channels:
+                total_messages = ChatMessage.query.filter_by(channel_id=channel_id).count()
+                if total_messages > 200:
+                    old_messages = ChatMessage.query.filter_by(channel_id=channel_id)\
+                        .order_by(ChatMessage.id.asc())\
+                        .limit(total_messages - 200).all()
+
+                    for msg in old_messages:
+                        db.session.delete(msg)
+
+                    total_cleaned += len(old_messages)
+
+            if total_cleaned > 0:
+                optimizations_run.append(f"Cleaned {total_cleaned} old messages")
+
+            db.session.commit()
+
+        except Exception as e:
+            optimizations_run.append(f"Data cleanup failed: {str(e)[:50]}")
+
+        # Get cache statistics
+        cache_stats = get_cache_stats()
+        optimizations_run.append(f"Cache entries: {cache_stats['entries']}")
+
+        flash(f'Speed optimization completed! Applied: {", ".join(optimizations_run)}', 'success')
+
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error during speed optimization: {e}', 'error')
 
     return redirect(url_for('admin_panel'))
 

@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CTF Dashboard - Fast</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Optimized CSS for faster rendering */
+        .fast-dashboard {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        
+        .quick-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .stat-card {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        
+        .stat-number {
+            font-size: 2rem;
+            font-weight: 700;
+            color: var(--accent-primary);
+            margin-bottom: 5px;
+        }
+        
+        .stat-label {
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+        
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .action-card {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+        
+        .action-btn {
+            background: var(--accent-primary);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            text-decoration: none;
+            display: inline-block;
+            margin-top: 10px;
+            transition: all 0.3s ease;
+        }
+        
+        .action-btn:hover {
+            background: var(--accent-success);
+            transform: translateY(-2px);
+        }
+        
+        .recent-activity {
+            background: var(--bg-card);
+            padding: 20px;
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+        }
+        
+        .activity-item {
+            padding: 10px 0;
+            border-bottom: 1px solid var(--border-color);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .activity-item:last-child {
+            border-bottom: none;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: var(--text-secondary);
+        }
+        
+        .spinner {
+            border: 3px solid var(--border-color);
+            border-top: 3px solid var(--accent-primary);
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        @media (max-width: 768px) {
+            .fast-dashboard {
+                padding: 10px;
+            }
+            
+            .quick-stats,
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="fast-dashboard">
+        <!-- Header -->
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <h1 style="color: var(--text-primary); margin: 0;">
+                <i class="fas fa-tachometer-alt"></i> Fast Dashboard
+            </h1>
+            <div>
+                <a href="/dashboard" class="action-btn" style="background: var(--accent-info); margin-right: 10px;">
+                    <i class="fas fa-expand"></i> Full Dashboard
+                </a>
+                <a href="/logout" class="action-btn" style="background: var(--accent-danger);">
+                    <i class="fas fa-sign-out-alt"></i> Logout
+                </a>
+            </div>
+        </div>
+
+        <!-- Quick Stats -->
+        <div id="quick-stats" class="quick-stats">
+            <div class="loading">
+                <div class="spinner"></div>
+                Loading stats...
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="quick-actions">
+            <div class="action-card">
+                <h3 style="color: var(--text-primary); margin-bottom: 10px;">
+                    <i class="fas fa-flag"></i> Challenges
+                </h3>
+                <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                    Solve CTF challenges and earn points
+                </p>
+                <a href="/challenges" class="action-btn">
+                    <i class="fas fa-play"></i> Start Solving
+                </a>
+            </div>
+            
+            <div class="action-card">
+                <h3 style="color: var(--text-primary); margin-bottom: 10px;">
+                    <i class="fas fa-trophy"></i> Leaderboard
+                </h3>
+                <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                    Check your ranking and compete
+                </p>
+                <a href="/scoreboard" class="action-btn">
+                    <i class="fas fa-chart-line"></i> View Rankings
+                </a>
+            </div>
+            
+            <div class="action-card">
+                <h3 style="color: var(--text-primary); margin-bottom: 10px;">
+                    <i class="fas fa-user"></i> Profile
+                </h3>
+                <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                    Update your profile and settings
+                </p>
+                <a href="/profile" class="action-btn">
+                    <i class="fas fa-edit"></i> Edit Profile
+                </a>
+            </div>
+            
+            <div class="action-card">
+                <h3 style="color: var(--text-primary); margin-bottom: 10px;">
+                    <i class="fas fa-users"></i> Teams
+                </h3>
+                <p style="color: var(--text-secondary); margin-bottom: 15px;">
+                    Join or create a team
+                </p>
+                <a href="/teams" class="action-btn">
+                    <i class="fas fa-handshake"></i> Team Up
+                </a>
+            </div>
+        </div>
+
+        <!-- Recent Activity -->
+        <div class="recent-activity">
+            <h3 style="color: var(--text-primary); margin-bottom: 15px;">
+                <i class="fas fa-clock"></i> Quick Leaderboard
+            </h3>
+            <div id="quick-leaderboard">
+                <div class="loading">
+                    <div class="spinner"></div>
+                    Loading leaderboard...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Ultra-fast dashboard loading with minimal JavaScript
+        document.addEventListener('DOMContentLoaded', function() {
+            loadDashboardData();
+            loadQuickLeaderboard();
+            
+            // Auto-refresh every 60 seconds
+            setInterval(() => {
+                loadDashboardData();
+                loadQuickLeaderboard();
+            }, 60000);
+        });
+
+        function loadDashboardData() {
+            fetch('/api/fast/dashboard')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const statsHtml = `
+                            <div class="stat-card">
+                                <div class="stat-number">${data.data.user.score}</div>
+                                <div class="stat-label">Your Score</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${data.data.challenges.solved}</div>
+                                <div class="stat-label">Challenges Solved</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${data.data.challenges.total}</div>
+                                <div class="stat-label">Total Challenges</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">${data.data.progress}%</div>
+                                <div class="stat-label">Progress</div>
+                            </div>
+                        `;
+                        document.getElementById('quick-stats').innerHTML = statsHtml;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading dashboard data:', error);
+                    document.getElementById('quick-stats').innerHTML = '<div class="loading">Error loading stats</div>';
+                });
+        }
+
+        function loadQuickLeaderboard() {
+            fetch('/api/fast/leaderboard?limit=5')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        const leaderboardHtml = data.leaderboard.map(user => `
+                            <div class="activity-item">
+                                <div>
+                                    <strong style="color: var(--text-primary);">#${user.rank} ${user.username}</strong>
+                                </div>
+                                <div style="color: var(--accent-primary); font-weight: 600;">
+                                    ${user.score} pts
+                                </div>
+                            </div>
+                        `).join('');
+                        
+                        document.getElementById('quick-leaderboard').innerHTML = leaderboardHtml;
+                    }
+                })
+                .catch(error => {
+                    console.error('Error loading leaderboard:', error);
+                    document.getElementById('quick-leaderboard').innerHTML = '<div class="loading">Error loading leaderboard</div>';
+                });
+        }
+    </script>
+    
+    {% include '_contact_footer.html' %}
+</body>
+</html>
