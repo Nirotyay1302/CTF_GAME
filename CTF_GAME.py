@@ -1097,19 +1097,13 @@ def api_teams_leaderboard():
 
 @app.route('/admin/init_sample_challenges', methods=['POST'])
 def init_sample_challenges():
-    """Initialize sample challenges for the CTF game"""
+    """Initialize 5 basic sample challenges"""
     if 'user_id' not in session or session.get('role') != 'admin':
         flash('Unauthorized', 'error')
         return redirect(url_for('admin_panel'))
 
     try:
-        # Check if challenges already exist
-        existing_count = Challenge.query.count()
-        if existing_count > 0:
-            flash(f'Challenges already exist ({existing_count} found). Delete existing challenges first if you want to reinitialize.', 'warning')
-            return redirect(url_for('admin_panel'))
-
-        # Sample challenges data
+        # Sample challenges data (5 basic ones)
         sample_challenges = [
             {
                 'title': 'Welcome to CTF!',
@@ -1149,12 +1143,17 @@ def init_sample_challenges():
                 'flag': 'flag{binary_is_cool}',
                 'points': 25,
                 'category': 'crypto',
-                'difficulty': 'medium'
+                'difficulty': 'easy'
             }
         ]
 
-        # Create challenges
+        created_count = 0
         for challenge_data in sample_challenges:
+            # Check if challenge already exists
+            existing = Challenge.query.filter_by(title=challenge_data['title']).first()
+            if existing:
+                continue
+
             # Encrypt the flag
             encrypted_flag = fernet.encrypt(challenge_data['flag'].encode())
 
@@ -1176,14 +1175,40 @@ def init_sample_challenges():
             )
 
             db.session.add(challenge)
+            created_count += 1
 
         db.session.commit()
-        flash(f'Successfully created {len(sample_challenges)} sample challenges!', 'success')
-        notify_admin('Sample challenges initialized', f'{len(sample_challenges)} sample challenges were created by admin.')
+        flash(f'Successfully created {created_count} sample challenges!', 'success')
+        notify_admin('Sample challenges initialized', f'{created_count} sample challenges were created by admin.')
 
     except Exception as e:
         db.session.rollback()
         flash(f'Error creating sample challenges: {e}', 'error')
+
+    return redirect(url_for('admin_panel'))
+
+@app.route('/admin/create_50_challenges', methods=['POST'])
+def create_50_challenges():
+    """Create 50 comprehensive CTF challenges"""
+    if 'user_id' not in session or session.get('role') != 'admin':
+        flash('Unauthorized', 'error')
+        return redirect(url_for('admin_panel'))
+
+    try:
+        # Import and run the 50 challenges script
+        from create_50_challenges import create_50_challenges as create_challenges_func
+
+        with app.app_context():
+            success = create_challenges_func()
+
+        if success:
+            flash('Successfully created 50 comprehensive CTF challenges!', 'success')
+            notify_admin('50 Challenges Created', '50 comprehensive CTF challenges were created by admin.')
+        else:
+            flash('Error creating 50 challenges. Check logs for details.', 'error')
+
+    except Exception as e:
+        flash(f'Error creating 50 challenges: {e}', 'error')
 
     return redirect(url_for('admin_panel'))
 

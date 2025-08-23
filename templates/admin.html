@@ -410,7 +410,10 @@
                     <button type="submit" style="background:var(--accent-success); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:500; cursor:pointer;">Generate Dynamic Challenge</button>
                   </form>
                   <form method="POST" action="{{ url_for('init_sample_challenges') }}" style="display:inline-flex; gap:8px; align-items:center; margin-top:8px;">
-                    <button type="submit" style="background:var(--accent-primary); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:500; cursor:pointer;" onclick="return confirm('This will create 5 sample challenges. Continue?')">Initialize Sample Challenges</button>
+                    <button type="submit" style="background:var(--accent-primary); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:500; cursor:pointer;" onclick="return confirm('This will create 5 basic sample challenges. Continue?')">Initialize 5 Sample Challenges</button>
+                  </form>
+                  <form method="POST" action="{{ url_for('create_50_challenges') }}" style="display:inline-flex; gap:8px; align-items:center; margin-top:8px;">
+                    <button type="submit" style="background:var(--accent-warning); color:white; border:none; padding:8px 16px; border-radius:6px; font-weight:500; cursor:pointer;" onclick="return confirm('This will create 50 comprehensive CTF challenges covering all categories and difficulties. This may take a moment. Continue?')">🎯 Create 50 Challenges</button>
                   </form>
                 </div>
             </div>
