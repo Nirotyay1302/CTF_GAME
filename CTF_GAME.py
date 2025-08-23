@@ -1,9 +1,11 @@
-from flask import Flask, render_template, request, redirect, session, url_for, flash, jsonify, send_from_directory, g
+from flask import Flask, render_template, request, redirect, session, url_for, flash, jsonify, send_from_directory, g, abort
 from flask_socketio import SocketIO, emit, join_room, leave_room
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.exceptions import RequestEntityTooLarge, BadRequest
 from cryptography.fernet import Fernet
 import os
 import time
+import logging
 from datetime import datetime, timedelta
 import functools
 from sqlalchemy.sql import func
@@ -58,19 +60,52 @@ app = Flask(__name__)
 app.config.from_object(Config)
 app.secret_key = Config.SECRET_KEY
 
+# Configure logging
+if not app.debug:
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+    )
+    app.logger.setLevel(logging.INFO)
+    app.logger.info('CTF Application startup')
+
 # Aggressive performance optimizations for speed
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_size': 20,           # Increased pool size
-    'pool_recycle': 300,       # Longer recycle time
-    'pool_pre_ping': True,
-    'max_overflow': 30,        # Higher overflow
-    'pool_timeout': 10,        # Faster timeout
-    'echo': False,             # Disable SQL logging
-    'connect_args': {
-        'connect_timeout': 5,
-        'application_name': 'ctf_app_fast'
+# Configure engine options based on database type
+database_url = app.config.get('SQLALCHEMY_DATABASE_URI', '')
+if 'postgresql' in database_url:
+    # PostgreSQL-specific options
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 20,           # Increased pool size
+        'pool_recycle': 300,       # Longer recycle time
+        'pool_pre_ping': True,
+        'max_overflow': 30,        # Higher overflow
+        'pool_timeout': 10,        # Faster timeout
+        'echo': False,             # Disable SQL logging
+        'connect_args': {
+            'connect_timeout': 5,
+            'application_name': 'ctf_app_fast'
+        }
     }
-}
+elif 'mysql' in database_url:
+    # MySQL-specific options
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_size': 20,
+        'pool_recycle': 300,
+        'pool_pre_ping': True,
+        'max_overflow': 30,
+        'pool_timeout': 10,
+        'echo': False,
+        'connect_args': {
+            'connect_timeout': 5,
+            'charset': 'utf8mb4'
+        }
+    }
+else:
+    # SQLite and other databases
+    app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+        'pool_pre_ping': True,
+        'echo': False
+    }
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['SQLALCHEMY_RECORD_QUERIES'] = False  # Disable query recording
 
@@ -82,7 +117,7 @@ app.jinja_env.optimized = True
 mail = Mail(app)
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Initialize compression for faster responses
+# Initialize compression for faster responses (optional)
 try:
     from flask_compress import Compress
     app.config['COMPRESS_MIMETYPES'] = [
@@ -95,15 +130,136 @@ try:
     Compress(app)
     print("✅ Response compression enabled")
 except ImportError:
-    print("⚠️ Flask-Compress not available")
+    print("⚠️ Flask-Compress not available - continuing without compression")
 
 # Initialize database with app
 db.init_app(app)
 Migrate(app, db)
 
+# Error Handlers
+@app.errorhandler(400)
+def bad_request(error):
+    """Handle bad request errors"""
+    app.logger.warning(f'Bad request: {request.url} - {error}')
+    if request.is_json:
+        return jsonify({'error': 'Bad request', 'message': str(error)}), 400
+    flash('Bad request. Please check your input.', 'error')
+    return redirect(url_for('index'))
+
+@app.errorhandler(401)
+def unauthorized(error):
+    """Handle unauthorized access"""
+    app.logger.warning(f'Unauthorized access: {request.url} - {error}')
+    if request.is_json:
+        return jsonify({'error': 'Unauthorized', 'message': 'Please log in to access this resource'}), 401
+    flash('Please log in to access this page.', 'error')
+    return redirect(url_for('login'))
+
+@app.errorhandler(403)
+def forbidden(error):
+    """Handle forbidden access"""
+    app.logger.warning(f'Forbidden access: {request.url} - {error}')
+    if request.is_json:
+        return jsonify({'error': 'Forbidden', 'message': 'You do not have permission to access this resource'}), 403
+    flash('You do not have permission to access this page.', 'error')
+    return redirect(url_for('dashboard'))
+
+@app.errorhandler(404)
+def not_found(error):
+    """Handle page not found errors"""
+    app.logger.info(f'Page not found: {request.url}')
+    if request.is_json:
+        return jsonify({'error': 'Not found', 'message': 'The requested resource was not found'}), 404
+    flash('Page not found.', 'error')
+    return redirect(url_for('dashboard'))
+
+@app.errorhandler(413)
+def request_entity_too_large(error):
+    """Handle file upload size errors"""
+    app.logger.warning(f'File too large: {request.url}')
+    if request.is_json:
+        return jsonify({'error': 'File too large', 'message': 'The uploaded file is too large'}), 413
+    flash('The uploaded file is too large. Please choose a smaller file.', 'error')
+    return redirect(request.referrer or url_for('dashboard'))
+
+@app.errorhandler(500)
+def internal_error(error):
+    """Handle internal server errors"""
+    app.logger.error(f'Internal error: {request.url} - {error}')
+    db.session.rollback()
+    if request.is_json:
+        return jsonify({'error': 'Internal server error', 'message': 'An unexpected error occurred'}), 500
+    flash('An unexpected error occurred. Please try again.', 'error')
+    return redirect(url_for('dashboard'))
+
+@app.errorhandler(Exception)
+def handle_exception(e):
+    """Handle all unhandled exceptions"""
+    app.logger.error(f'Unhandled exception: {request.url} - {e}', exc_info=True)
+    db.session.rollback()
+    if request.is_json:
+        return jsonify({'error': 'Server error', 'message': 'An unexpected error occurred'}), 500
+    flash('An unexpected error occurred. Please try again.', 'error')
+    return redirect(url_for('dashboard'))
+
 # Aggressive multi-level caching for maximum speed
 cache = {}
 cache_stats = {'hits': 0, 'misses': 0, 'sets': 0}
+
+# Rate limiting storage
+rate_limit_storage = {}
+
+def rate_limit(max_requests=5, window=60, per='ip'):
+    """Rate limiting decorator"""
+    def decorator(f):
+        @functools.wraps(f)
+        def decorated_function(*args, **kwargs):
+            # Get identifier (IP or user)
+            if per == 'ip':
+                identifier = request.remote_addr
+            elif per == 'user' and 'user_id' in session:
+                identifier = f"user_{session['user_id']}"
+            else:
+                identifier = request.remote_addr
+
+            # Clean old entries
+            current_time = time.time()
+            if identifier in rate_limit_storage:
+                rate_limit_storage[identifier] = [
+                    timestamp for timestamp in rate_limit_storage[identifier]
+                    if current_time - timestamp < window
+                ]
+            else:
+                rate_limit_storage[identifier] = []
+
+            # Check rate limit
+            if len(rate_limit_storage[identifier]) >= max_requests:
+                app.logger.warning(f'Rate limit exceeded for {identifier} on {request.endpoint}')
+                if request.is_json:
+                    return jsonify({'error': 'Rate limit exceeded', 'message': 'Too many requests'}), 429
+                flash('Too many requests. Please wait before trying again.', 'error')
+                return redirect(request.referrer or url_for('dashboard'))
+
+            # Add current request
+            rate_limit_storage[identifier].append(current_time)
+
+            return f(*args, **kwargs)
+        return decorated_function
+    return decorator
+
+def validate_input(data, required_fields=None, max_lengths=None):
+    """Validate input data"""
+    if required_fields:
+        for field in required_fields:
+            if field not in data or not data[field] or not str(data[field]).strip():
+                return False, f'{field} is required'
+
+    if max_lengths:
+        for field, max_length in max_lengths.items():
+            if field in data and len(str(data[field])) > max_length:
+                return False, f'{field} is too long (max {max_length} characters)'
+
+    return True, None
 
 # Different cache timeouts for different data types
 cache_timeouts = {
@@ -208,9 +364,19 @@ def after_request(response):
         response.cache_control.max_age = 60  # 1 minute for pages
         response.cache_control.public = True
 
-    # Security headers (minimal for speed)
+    # Comprehensive security headers
     response.headers['X-Content-Type-Options'] = 'nosniff'
     response.headers['X-Frame-Options'] = 'DENY'
+    response.headers['X-XSS-Protection'] = '1; mode=block'
+    response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+
+    # HTTPS security headers (only in production)
+    if not app.debug and request.is_secure:
+        response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+
+    # Content Security Policy
+    csp = "default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; style-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'"
+    response.headers['Content-Security-Policy'] = csp
 
     # Performance headers
     response.headers['X-Cache-Status'] = 'HIT' if hasattr(g, 'cache_hit') else 'MISS'
@@ -414,67 +580,244 @@ def send_email(to_email, subject, body, html: str | None = None, cc: list | None
 def index():
     return redirect(url_for('login'))
 
+@app.route('/favicon.ico')
+def favicon():
+    """Serve a simple favicon to prevent 404 errors"""
+    return '', 204  # No Content response
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint for load balancers and monitoring"""
+    try:
+        # Check database connection
+        db.session.execute(db.text('SELECT 1'))
+
+        return jsonify({
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'version': '1.0.0',
+            'database': 'connected'
+        }), 200
+
+    except Exception as e:
+        app.logger.error(f'Health check failed: {e}')
+        return jsonify({
+            'status': 'unhealthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'error': str(e)
+        }), 503
+
 @app.route('/signup', methods=['GET', 'POST'])
+@rate_limit(max_requests=3, window=300, per='ip')  # 3 signups per 5 minutes per IP
 def signup():
     if request.method == 'POST':
-        username = request.form['username']
-        email = request.form['email']
-        password = request.form['password']
-        confirm_password = request.form.get('confirm_password', '')
-        if password != confirm_password:
+        # Input validation
+        form_data = {
+            'username': request.form.get('username', '').strip(),
+            'email': request.form.get('email', '').strip(),
+            'password': request.form.get('password', ''),
+            'confirm_password': request.form.get('confirm_password', '')
+        }
+
+        # Validate required fields
+        is_valid, error_msg = validate_input(
+            form_data,
+            required_fields=['username', 'email', 'password'],
+            max_lengths={'username': 50, 'email': 150, 'password': 128}
+        )
+
+        if not is_valid:
+            flash(error_msg, "error")
+            return redirect(url_for('signup'))
+
+        # Additional validation
+        if form_data['password'] != form_data['confirm_password']:
             flash("Passwords do not match", "error")
             return redirect(url_for('signup'))
-        if len(password) < 6:
-            flash("Password must be at least 6 characters long", "error")
+
+        if len(form_data['password']) < 8:
+            flash("Password must be at least 8 characters long", "error")
             return redirect(url_for('signup'))
+
+        # Check password complexity
+        if not any(c.isupper() for c in form_data['password']) or \
+           not any(c.islower() for c in form_data['password']) or \
+           not any(c.isdigit() for c in form_data['password']):
+            flash("Password must contain at least one uppercase letter, one lowercase letter, and one number", "error")
+            return redirect(url_for('signup'))
+
+        # Validate email format
+        import re
+        email_pattern = r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$'
+        if not re.match(email_pattern, form_data['email']):
+            flash("Please enter a valid email address", "error")
+            return redirect(url_for('signup'))
+
         # Check if username or email already exists
-        existing_user = User.query.filter((User.username == username)|(User.email == email)).first()
+        existing_user = User.query.filter(
+            (User.username == form_data['username']) | (User.email == form_data['email'])
+        ).first()
         if existing_user:
             flash("Username or email already exists", "error")
             return redirect(url_for('signup'))
-        
-        # If no existing user found, allow creation (this handles the case where user was previously deleted)
-        hashed_password = generate_password_hash(password)
-        new_user = User(username=username, email=email, password_hash=hashed_password)
-        db.session.add(new_user)
-        db.session.commit()  # <-- ADD THIS LINE
-        trigger_export_async()
-        notify_admin(
-            "New user signup",
-            f"User '{new_user.username}' ({new_user.email}) has signed up."
-        )
-        send_email(
-            new_user.email,
-            "🎉 Welcome to the CTF Game!",
-            f"Hello {new_user.username},\n\nYou're successfully signed up! Let's start solving challenges and capture the flags! 💥",
-            html=f"<p>Hello <strong>{new_user.username}</strong>,</p><p>You're successfully signed up! Let's start solving challenges and capture the flags! 💥</p>"
-        )
-        return redirect(url_for('login'))
+
+        try:
+            # Create new user with secure password hashing
+            hashed_password = generate_password_hash(form_data['password'], method='pbkdf2:sha256', salt_length=16)
+            new_user = User(
+                username=form_data['username'],
+                email=form_data['email'],
+                password_hash=hashed_password
+            )
+            db.session.add(new_user)
+            db.session.commit()
+
+            app.logger.info(f"New user registered: {new_user.username} ({new_user.email})")
+
+            trigger_export_async()
+            notify_admin(
+                "New user signup",
+                f"User '{new_user.username}' ({new_user.email}) has signed up."
+            )
+            send_email(
+                new_user.email,
+                "🎉 Welcome to the CTF Game!",
+                f"Hello {new_user.username},\n\nYou're successfully signed up! Let's start solving challenges and capture the flags! 💥",
+                html=f"<p>Hello <strong>{new_user.username}</strong>,</p><p>You're successfully signed up! Let's start solving challenges and capture the flags! 💥</p>"
+            )
+
+            flash("Account created successfully! Please log in.", "success")
+            return redirect(url_for('login'))
+
+        except Exception as e:
+            db.session.rollback()
+            app.logger.error(f"Error creating user account: {e}")
+            flash("An error occurred while creating your account. Please try again.", "error")
+            return redirect(url_for('signup'))
+
     return render_template('signup.html')
 
 @app.route('/login', methods=['GET', 'POST'])
+@rate_limit(max_requests=5, window=300, per='ip')  # 5 login attempts per 5 minutes per IP
 def login():
     if request.method == 'POST':
-        username = request.form['username']
-        password = request.form['password']
-        user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password_hash, password):
-            session['user_id'] = user.id
-            session['username'] = user.username
-            session['role'] = user.role
-            # Send email on successful login only for non-admin users and only once
-            if user.role != 'admin' and 'login_email_sent' not in session:
-                send_email(
-                    user.email,
-                    "🔓 Login Successful - CTF Game",
-                    f"Hello {user.username},\n\nYou have successfully logged in to the CTF platform.",
-                    html=f"<p>Hello <strong>{user.username}</strong>,</p><p>You have successfully logged in to the CTF platform.</p>"
-                )
-                # Mark that login email has been sent to prevent duplicates
-                session['login_email_sent'] = True
-            return redirect(url_for('dashboard'))
-        flash("Invalid credentials", "error")
+        # Input validation
+        username = request.form.get('username', '').strip()
+        password = request.form.get('password', '')
+
+        if not username or not password:
+            flash("Username and password are required", "error")
+            return redirect(url_for('login'))
+
+        # Additional rate limiting per username
+        username_key = f"login_attempts_{username}"
+        if username_key in rate_limit_storage:
+            attempts = len(rate_limit_storage[username_key])
+            if attempts >= 3:  # 3 attempts per username
+                app.logger.warning(f"Too many login attempts for user: {username}")
+                flash("Too many login attempts for this account. Please try again later.", "error")
+                return redirect(url_for('login'))
+
+        try:
+            user = User.query.filter_by(username=username).first()
+
+            if user and check_password_hash(user.password_hash, password):
+                # Clear failed login attempts
+                if username_key in rate_limit_storage:
+                    del rate_limit_storage[username_key]
+
+                # Set session with security measures
+                session.permanent = True
+                session['user_id'] = user.id
+                session['username'] = user.username
+                session['role'] = user.role
+                session['login_time'] = time.time()
+
+                # Log successful login
+                app.logger.info(f"Successful login: {user.username} from {request.remote_addr}")
+
+                # Send email on successful login only for non-admin users and only once per session
+                if user.role != 'admin' and 'login_email_sent' not in session:
+                    try:
+                        send_email(
+                            user.email,
+                            "🔓 Login Successful - CTF Game",
+                            f"Hello {user.username},\n\nYou have successfully logged in to the CTF platform from IP: {request.remote_addr}",
+                            html=f"<p>Hello <strong>{user.username}</strong>,</p><p>You have successfully logged in to the CTF platform from IP: {request.remote_addr}</p>"
+                        )
+                        session['login_email_sent'] = True
+                    except Exception as e:
+                        app.logger.error(f"Failed to send login email: {e}")
+
+                return redirect(url_for('dashboard'))
+            else:
+                # Track failed login attempts
+                current_time = time.time()
+                if username_key not in rate_limit_storage:
+                    rate_limit_storage[username_key] = []
+                rate_limit_storage[username_key].append(current_time)
+
+                # Clean old attempts (older than 5 minutes)
+                rate_limit_storage[username_key] = [
+                    timestamp for timestamp in rate_limit_storage[username_key]
+                    if current_time - timestamp < 300
+                ]
+
+                app.logger.warning(f"Failed login attempt: {username} from {request.remote_addr}")
+                flash("Invalid username or password", "error")
+
+        except Exception as e:
+            app.logger.error(f"Login error: {e}")
+            flash("An error occurred during login. Please try again.", "error")
+
     return render_template('login.html')
+
+@app.route('/logout')
+def logout():
+    """Secure logout with session cleanup"""
+    if 'user_id' in session:
+        username = session.get('username', 'Unknown')
+        app.logger.info(f"User logout: {username}")
+
+    # Clear all session data
+    session.clear()
+
+    flash("You have been logged out successfully.", "info")
+    return redirect(url_for('login'))
+
+# Session security middleware
+@app.before_request
+def check_session_security():
+    """Check session security and validity"""
+    # Skip security checks for static files and auth routes
+    if request.endpoint in ['static', 'login', 'signup', 'index', 'health_check']:
+        return
+
+    # Check if user is logged in
+    if 'user_id' not in session:
+        if request.endpoint not in ['login', 'signup']:
+            flash("Please log in to access this page.", "error")
+            return redirect(url_for('login'))
+        return
+
+    # Check session timeout (24 hours)
+    login_time = session.get('login_time', 0)
+    if time.time() - login_time > 86400:  # 24 hours
+        session.clear()
+        flash("Your session has expired. Please log in again.", "error")
+        return redirect(url_for('login'))
+
+    # Verify user still exists and is active
+    try:
+        user = db.session.get(User, session['user_id'])
+        if not user:
+            session.clear()
+            flash("Your account is no longer valid. Please log in again.", "error")
+            return redirect(url_for('login'))
+    except Exception as e:
+        app.logger.error(f"Session validation error: {e}")
+        session.clear()
+        return redirect(url_for('login'))
 
 @app.route('/dashboard')
 def dashboard():
@@ -1968,25 +2311,7 @@ def generate_dynamic_challenge():
         flash(f'Error generating challenge: {e}', 'error')
     return redirect(url_for('admin_panel'))
 
-@app.route('/logout')
-def logout():
-    # Check if user is already logged out to prevent duplicate emails
-    if 'user_id' in session and 'logout_email_sent' not in session:
-        user = db.session.get(User, session['user_id'])
-        # Only send logout email if not admin and email hasn't been sent
-        if user and user.role != 'admin':
-            send_email(
-                user.email,
-                "🚪 You have logged out - CTF Game",
-                f"Hello {user.username},\n\nYou have logged out from the CTF platform.\nYour current score is: {user.score} points.\n\nSee you soon!",
-                html=f"<p>Hello <strong>{user.username}</strong>,</p><p>You have logged out from the CTF platform.</p><p>Your current score is: <strong>{user.score}</strong> points.</p><p>See you soon!</p>"
-            )
-            # Mark that logout email has been sent to prevent duplicates
-            session['logout_email_sent'] = True
-    
-    session.clear()
-    flash("You have been logged out", "info")
-    return redirect(url_for('login'))
+
 
 @app.route('/admin', methods=['GET', 'POST'])
 def admin_panel():

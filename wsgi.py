@@ -52,6 +52,22 @@ try:
     print(f"Python version: {sys.version}")
     print(f"Working directory: {os.getcwd()}")
 
+    # Check if running on Render.com
+    render_service = os.environ.get('RENDER_SERVICE_NAME')
+    if render_service:
+        print(f"🚀 Deploying on Render.com - Service: {render_service}")
+
+        # Import Render configuration
+        try:
+            from render_config import RenderConfig, optimize_for_render
+            print("✅ Render configuration loaded")
+        except ImportError:
+            print("⚠️ Render configuration not found, using default")
+            RenderConfig = None
+    else:
+        print("🏠 Running locally or on other platform")
+        RenderConfig = None
+
     # Check DATABASE_URL
     database_url = os.environ.get('DATABASE_URL')
     print(f"DATABASE_URL set: {bool(database_url)}")
@@ -63,6 +79,13 @@ try:
     print("Importing CTF_GAME...")
     from CTF_GAME import app, db
     print("Successfully imported CTF_GAME components")
+
+    # Apply Render configuration if available
+    if RenderConfig:
+        print("Applying Render.com configuration...")
+        app.config.from_object(RenderConfig)
+        optimize_for_render(app)
+        print("✅ Render optimizations applied")
 
     # Create database tables if they don't exist
     def create_tables():
@@ -118,17 +141,7 @@ try:
         traceback.print_exc()
         return "An error occurred - Check logs for details", 500
 
-    # Add a health check route
-    @app.route('/health')
-    def health_check():
-        try:
-            # Test database connection
-            with app.app_context():
-                result = db.session.execute(db.text('SELECT 1'))
-                result.close()
-            return jsonify({'status': 'healthy', 'message': 'CTF Game is running', 'database': 'connected'}), 200
-        except Exception as e:
-            return jsonify({'status': 'unhealthy', 'message': str(e), 'database': 'disconnected', 'traceback': traceback.format_exc()}), 500
+    # Health check route is already defined in CTF_GAME.py
 
     @app.route('/debug')
     def debug_info():
