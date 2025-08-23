@@ -18,9 +18,13 @@ class Config:
     # Build database URI
     DATABASE_URL = os.environ.get('DATABASE_URL')
     if not DATABASE_URL:
-        # Use MySQL by default
-        DATABASE_URL = f'mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}/{MYSQL_DB}?charset=utf8mb4'
-    
+        # Use SQLite for local development
+        DATABASE_URL = 'sqlite:///instance/ctf.sqlite'
+    else:
+        # Handle PostgreSQL URL from Render (fix postgres:// to postgresql://)
+        if DATABASE_URL.startswith('postgres://'):
+            DATABASE_URL = DATABASE_URL.replace('postgres://', 'postgresql://', 1)
+
     SQLALCHEMY_DATABASE_URI = DATABASE_URL
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     SQLALCHEMY_ENGINE_OPTIONS = {'pool_pre_ping': True}
