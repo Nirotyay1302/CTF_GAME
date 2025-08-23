@@ -1,12 +1,19 @@
-// Modern Notification Sidebar JavaScript
+// Enhanced Modern Notification Sidebar JavaScript with Performance Optimizations
 document.addEventListener('DOMContentLoaded', function() {
     const socket = io();
-    
-    // Initialize notifications
+
+    // Performance tracking
+    const startTime = performance.now();
+
+    // Initialize notifications with optimizations
     setupNotifications();
     setupEventListeners();
     setupSidebar();
-    
+    setupPerformanceOptimizations();
+
+    // Log initialization time
+    console.log(`Notifications initialized in ${(performance.now() - startTime).toFixed(2)}ms`);
+
     // Join notifications room
     socket.emit('join_notifications');
     
@@ -392,3 +399,54 @@ document.addEventListener('DOMContentLoaded', function() {
         sidebarContent.style.scrollBehavior = 'smooth';
     }
 });
+
+// Performance optimizations for notifications
+function setupPerformanceOptimizations() {
+    // Debounce notification updates
+    let updateTimeout;
+    const originalUpdateCount = window.updateNotificationCount;
+    if (originalUpdateCount) {
+        window.updateNotificationCount = function(count) {
+            clearTimeout(updateTimeout);
+            updateTimeout = setTimeout(() => {
+                originalUpdateCount(count);
+            }, 100);
+        };
+    }
+
+    // Memory management - limit notifications in DOM
+    const maxNotifications = 50;
+    function cleanupOldNotifications() {
+        const items = document.querySelectorAll('.notification-item');
+        if (items.length > maxNotifications) {
+            for (let i = maxNotifications; i < items.length; i++) {
+                items[i].remove();
+            }
+        }
+    }
+
+    // Run cleanup periodically
+    setInterval(cleanupOldNotifications, 30000); // Every 30 seconds
+
+    // Optimize animations for accessibility
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    if (prefersReducedMotion.matches) {
+        // Disable animations for users who prefer reduced motion
+        document.documentElement.style.setProperty('--animation-duration', '0s');
+    }
+
+    // Intersection observer for performance
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                const item = entry.target;
+                item.classList.add('visible');
+            }
+        });
+    });
+
+    // Observe notification items
+    document.querySelectorAll('.notification-item').forEach(item => {
+        observer.observe(item);
+    });
+}

@@ -3170,11 +3170,26 @@ def chat():
         db.session.add(default_channel)
         db.session.commit()
     
-    # Get recent chat messages (last 50)
-    recent_messages = ChatMessage.query.order_by(ChatMessage.timestamp.desc()).limit(50).all()
-    recent_messages.reverse()  # Show oldest first
-    
-    return render_template('chat.html', user=user, recent_messages=recent_messages)
+    # Get recent chat messages with caching for better performance
+    cache_key = f"chat_messages_1"
+
+    def generate_chat_messages():
+        messages = ChatMessage.query.filter_by(channel_id=1)\
+            .order_by(ChatMessage.timestamp.desc())\
+            .limit(30).all()  # Reduced to 30 for faster loading
+        messages.reverse()  # Show oldest first
+        return messages
+
+    recent_messages = get_from_cache(cache_key, generate_chat_messages, timeout=10)  # 10 second cache
+
+    # Get online users count (simplified)
+    online_users_count = 1  # Will be enhanced with WebSocket tracking
+
+    return render_template('chat.html',
+                         user=user,
+                         recent_messages=recent_messages,
+                         online_users=online_users_count,
+                         channel_name='General')
 
 @app.route('/api/chat/messages')
 def api_chat_messages():
@@ -3182,22 +3197,46 @@ def api_chat_messages():
     if 'user_id' not in session:
         return jsonify({'error': 'Not authenticated'}), 401
     
-    # Get recent messages (last 100)
-    messages = ChatMessage.query.order_by(ChatMessage.timestamp.desc()).limit(100).all()
-    messages.reverse()  # Show oldest first
-    
-    messages_data = []
-    for msg in messages:
-        messages_data.append({
-            'id': msg.id,
-            'username': msg.user.username,
-            'message': msg.content,
-            'created_at': msg.timestamp.strftime('%H:%M') if msg.timestamp else '',
-            'user_id': msg.user_id,
-            'is_own': msg.user_id == session['user_id']
-        })
-    
-    return jsonify({'messages': messages_data})
+    # Get recent messages with caching and optimization
+    limit = min(int(request.args.get('limit', 50)), 100)  # Max 100 messages
+    cache_key = f"chat_api_messages_{limit}"
+
+    def generate_api_messages():
+        # Optimized query with join to get user data in one query
+        messages = db.session.query(
+            ChatMessage.id,
+            ChatMessage.content,
+            ChatMessage.timestamp,
+            ChatMessage.user_id,
+            User.username
+        ).join(User, ChatMessage.user_id == User.id)\
+         .filter(ChatMessage.channel_id == 1)\
+         .order_by(ChatMessage.timestamp.desc())\
+         .limit(limit).all()
+
+        messages = list(reversed(messages))  # Show oldest first
+
+        messages_data = []
+        for msg in messages:
+            messages_data.append({
+                'id': msg.id,
+                'username': msg.username,
+                'message': msg.content,
+                'created_at': msg.timestamp.strftime('%H:%M') if msg.timestamp else '',
+                'user_id': msg.user_id,
+                'is_own': msg.user_id == session['user_id'],
+                'timestamp': msg.timestamp.isoformat() if msg.timestamp else ''
+            })
+
+        return messages_data
+
+    messages_data = get_from_cache(cache_key, generate_api_messages, timeout=5)  # 5 second cache
+
+    return jsonify({
+        'success': True,
+        'messages': messages_data,
+        'count': len(messages_data)
+    })
 
 @app.route('/api/chat/send', methods=['POST'])
 def api_send_message():
@@ -3469,6 +3508,101 @@ def api_fast_leaderboard():
 
     except Exception as e:
         return jsonify({'error': f'Leaderboard API error: {str(e)}'}), 500
+
+@app.route('/api/fast/user-stats')
+def api_fast_user_stats():
+    """Ultra-fast user statistics API endpoint"""
+    if 'user_id' not in session:
+        return jsonify({'error': 'Not authenticated'}), 401
+
+    try:
+        user_id = session['user_id']
+        cache_key = f"fast_user_stats_{user_id}"
+
+        def generate_user_stats():
+            # Single optimized query for user stats
+            user_stats = db.session.query(
+                User.username,
+                User.score,
+                User.country,
+                func.count(Solve.id).label('total_solves'),
+                func.count(func.distinct(Challenge.category)).label('categories_solved')
+            ).outerjoin(
+                Solve, Solve.user_id == User.id
+            ).outerjoin(
+                Challenge, Challenge.id == Solve.challenge_id
+            ).filter(
+                User.id == user_id
+            ).group_by(User.id, User.username, User.score, User.country).first()
+
+            if not user_stats:
+                return None
+
+            # Get user rank efficiently
+            rank = db.session.query(func.count(User.id)).filter(
+                User.score > user_stats.score,
+                User.role != 'admin'
+            ).scalar() + 1
+
+            return {
+                'username': user_stats.username,
+                'score': user_stats.score,
+                'country': user_stats.country,
+                'total_solves': user_stats.total_solves,
+                'categories_solved': user_stats.categories_solved,
+                'rank': rank
+            }
+
+        data = get_from_cache(cache_key, generate_user_stats, timeout=60)
+
+        if data:
+            g.cache_hit = True
+            return jsonify({'success': True, 'stats': data})
+        else:
+            return jsonify({'error': 'Failed to load user stats'}), 500
+
+    except Exception as e:
+        return jsonify({'error': f'User stats API error: {str(e)}'}), 500
+
+@app.route('/api/fast/recent-activity')
+def api_fast_recent_activity():
+    """Ultra-fast recent activity API endpoint"""
+    try:
+        limit = min(int(request.args.get('limit', 10)), 20)  # Max 20 for speed
+        cache_key = f"fast_recent_activity_{limit}"
+
+        def generate_recent_activity():
+            # Optimized query for recent solves
+            recent_solves = db.session.query(
+                Solve.timestamp,
+                User.username,
+                Challenge.title,
+                Challenge.points,
+                Challenge.category
+            ).join(User, Solve.user_id == User.id)\
+             .join(Challenge, Solve.challenge_id == Challenge.id)\
+             .filter(User.role != 'admin')\
+             .order_by(Solve.timestamp.desc())\
+             .limit(limit).all()
+
+            activity_list = []
+            for solve in recent_solves:
+                activity_list.append({
+                    'username': solve.username,
+                    'challenge': solve.title,
+                    'points': solve.points,
+                    'category': solve.category,
+                    'time_ago': (datetime.utcnow() - solve.timestamp).total_seconds() if solve.timestamp else 0
+                })
+
+            return activity_list
+
+        data = get_from_cache(cache_key, generate_recent_activity, timeout=30)
+        g.cache_hit = True
+        return jsonify({'success': True, 'activity': data})
+
+    except Exception as e:
+        return jsonify({'error': f'Recent activity API error: {str(e)}'}), 500
 
 @app.route('/admin/optimize_performance', methods=['POST'])
 def optimize_performance():

@@ -1,4 +1,4 @@
-// Enhanced Dashboard JavaScript
+// Enhanced Dashboard JavaScript with Performance Optimizations
 class DashboardEnhanced {
     constructor() {
         this.socket = null;
@@ -18,6 +18,9 @@ class DashboardEnhanced {
     }
 
     init() {
+        // Performance monitoring
+        this.startTime = performance.now();
+
         this.setupEventListeners();
         this.setupWebSocket();
         this.setupFilters();
@@ -28,6 +31,96 @@ class DashboardEnhanced {
         this.maybeShowOnboarding();
         this.setupNotifications();
         this.setupNotificationSidebar();
+
+        // Performance optimizations
+        this.setupPerformanceOptimizations();
+        this.setupSmartRefresh();
+        this.setupKeyboardShortcuts();
+
+        // Log initialization time
+        const initTime = performance.now() - this.startTime;
+        console.log(`Dashboard initialized in ${initTime.toFixed(2)}ms`);
+    }
+
+    // Performance optimizations
+    setupPerformanceOptimizations() {
+        // Lazy load images
+        this.setupLazyLoading();
+
+        // Debounce resize events
+        let resizeTimeout;
+        window.addEventListener('resize', () => {
+            clearTimeout(resizeTimeout);
+            resizeTimeout = setTimeout(() => {
+                this.handleResize();
+            }, 250);
+        });
+
+        // Optimize scroll events
+        let scrollTimeout;
+        window.addEventListener('scroll', () => {
+            clearTimeout(scrollTimeout);
+            scrollTimeout = setTimeout(() => {
+                this.handleScroll();
+            }, 100);
+        });
+    }
+
+    // Smart refresh based on user activity
+    setupSmartRefresh() {
+        this.isUserActive = true;
+        this.lastActivity = Date.now();
+
+        // Track user activity
+        ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart'].forEach(event => {
+            document.addEventListener(event, () => {
+                this.isUserActive = true;
+                this.lastActivity = Date.now();
+            });
+        });
+
+        // Adaptive refresh interval
+        setInterval(() => {
+            const timeSinceActivity = Date.now() - this.lastActivity;
+
+            if (timeSinceActivity < 300000 && this.isUserActive) { // 5 minutes
+                this.refreshData();
+            }
+        }, 30000); // Check every 30 seconds
+    }
+
+    // Keyboard shortcuts
+    setupKeyboardShortcuts() {
+        document.addEventListener('keydown', (e) => {
+            // Ctrl/Cmd + R for refresh
+            if ((e.ctrlKey || e.metaKey) && e.key === 'r') {
+                e.preventDefault();
+                this.refreshData();
+                this.showNotification('Dashboard refreshed!', 'success');
+            }
+
+            // Escape to close modals
+            if (e.key === 'Escape') {
+                this.closeAllModals();
+            }
+        });
+    }
+
+    // Lazy loading for images
+    setupLazyLoading() {
+        const images = document.querySelectorAll('img[data-src]');
+        const imageObserver = new IntersectionObserver((entries, observer) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    const img = entry.target;
+                    img.src = img.dataset.src;
+                    img.removeAttribute('data-src');
+                    observer.unobserve(img);
+                }
+            });
+        });
+
+        images.forEach(img => imageObserver.observe(img));
     }
 
     // Event Listeners
