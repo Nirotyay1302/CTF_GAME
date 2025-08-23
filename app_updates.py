@@ -63,9 +63,7 @@ def create_admin_user():
                     username='admin',
                     email='admin@ctf.local',
                     password_hash=generate_password_hash('admin123'),
-                    role='admin',
-                    created_at=datetime.utcnow(),
-                    email_verified=True
+                    role='admin'
                 )
                 db.session.add(admin)
                 db.session.commit()
@@ -173,18 +171,8 @@ def cleanup_old_data():
                     db.session.delete(msg)
                 print(f"Cleaned up {len(old_messages)} old chat messages")
             
-            # Remove incomplete user registrations (older than 24 hours, not verified)
-            cutoff_time = datetime.utcnow() - timedelta(hours=24)
-            incomplete_users = User.query.filter(
-                User.email_verified == False,
-                User.created_at < cutoff_time
-            ).all()
-            
-            for user in incomplete_users:
-                db.session.delete(user)
-            
-            if incomplete_users:
-                print(f"Cleaned up {len(incomplete_users)} incomplete user registrations")
+            # Skip user cleanup since User model doesn't have created_at or email_verified fields
+            print("User cleanup skipped (no timestamp or verification fields in User model)")
             
             db.session.commit()
             print("✅ Data cleanup completed")

@@ -133,11 +133,11 @@ def after_request(response):
 # Cached data generators
 def generate_leaderboard_data():
     """Generate leaderboard data"""
-    users = User.query.filter(User.role != 'admin').order_by(User.total_points.desc()).limit(50).all()
+    users = User.query.filter(User.role != 'admin').order_by(User.score.desc()).limit(50).all()
     return [
         {
             'username': user.username,
-            'total_points': user.total_points,
+            'total_points': user.score,
             'team_name': user.team.name if user.team else None
         }
         for user in users
@@ -1425,10 +1425,7 @@ def create_admin_user_route():
             username='admin',
             email='admin@ctf.local',
             password_hash=generate_password_hash('admin123'),
-            role='admin',
-            created_at=datetime.utcnow(),
-            email_verified=True,
-            total_points=0
+            role='admin'
         )
 
         db.session.add(admin)
@@ -1492,8 +1489,7 @@ def debug_users():
                 'username': user.username,
                 'email': user.email,
                 'role': user.role,
-                'created_at': user.created_at.isoformat() if user.created_at else None,
-                'email_verified': user.email_verified
+                'score': user.score
             })
 
         return jsonify({
@@ -2788,19 +2784,11 @@ def optimize_performance():
         except Exception as e:
             optimizations_run.append(f"Chat cleanup skipped: {e}")
 
-        # Remove incomplete user registrations (older than 7 days)
+        # Remove users with score 0 and no activity (older than 7 days)
         try:
             cutoff_time = datetime.utcnow() - timedelta(days=7)
-            incomplete_users = User.query.filter(
-                User.email_verified == False,
-                User.created_at < cutoff_time
-            ).all()
-
-            for user in incomplete_users:
-                db.session.delete(user)
-
-            if incomplete_users:
-                optimizations_run.append(f"Removed {len(incomplete_users)} incomplete registrations")
+            # Since we don't have created_at or email_verified, skip this optimization
+            optimizations_run.append("User cleanup skipped (no timestamp fields)")
         except Exception as e:
             optimizations_run.append(f"User cleanup skipped: {e}")
 
