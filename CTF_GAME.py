@@ -1,5 +1,15 @@
 from flask import Flask, render_template, request, redirect, session, url_for, flash, jsonify, send_from_directory, g, abort
-from flask_socketio import SocketIO, emit, join_room, leave_room
+# Import SocketIO with error handling
+try:
+    from flask_socketio import SocketIO, emit, join_room, leave_room
+    SOCKETIO_AVAILABLE = True
+except ImportError:
+    print("Warning: flask-socketio not available, running without WebSocket support")
+    SOCKETIO_AVAILABLE = False
+    SocketIO = None
+    emit = None
+    join_room = None
+    leave_room = None
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.exceptions import RequestEntityTooLarge, BadRequest
 from cryptography.fernet import Fernet
@@ -34,10 +44,18 @@ from models import (
 )
 import threading
 import json
-from dynamic_challenges import (
-    generate_crypto_base64_flag,
-    generate_stego_text_image,
-)
+# Import dynamic_challenges with error handling
+try:
+    from dynamic_challenges import (
+        generate_crypto_base64_flag,
+        generate_stego_text_image,
+    )
+    DYNAMIC_CHALLENGES_AVAILABLE = True
+except ImportError:
+    print("Warning: dynamic_challenges not available")
+    DYNAMIC_CHALLENGES_AVAILABLE = False
+    generate_crypto_base64_flag = None
+    generate_stego_text_image = None
 import secrets
 import hashlib
 import random
@@ -210,7 +228,33 @@ app.jinja_env.cache_size = 1000  # Increased cache size
 app.jinja_env.optimized = True
 
 mail = Mail(app)
-socketio = SocketIO(app, cors_allowed_origins="*")
+
+# Initialize SocketIO with error handling
+if SOCKETIO_AVAILABLE:
+    socketio = SocketIO(app, cors_allowed_origins="*")
+else:
+    socketio = None
+
+# Helper function for safe SocketIO operations
+def safe_socketio_emit(event, data, **kwargs):
+    """Safely emit SocketIO events with error handling"""
+    if socketio and SOCKETIO_AVAILABLE:
+        try:
+            socketio.emit(event, data, **kwargs)
+        except Exception as e:
+            print(f"SocketIO emit error: {e}")
+    else:
+        print(f"SocketIO not available, would emit: {event}")
+
+def safe_emit(event, data, **kwargs):
+    """Safely emit events with error handling"""
+    if emit and SOCKETIO_AVAILABLE:
+        try:
+            emit(event, data, **kwargs)
+        except Exception as e:
+            print(f"Emit error: {e}")
+    else:
+        print(f"Emit not available, would emit: {event}")
 
 # Initialize compression for faster responses (optional)
 try:
@@ -520,33 +564,34 @@ if not app.config.get('TOURNAMENT_TIMER_STARTED'):
     except Exception as _e:
         print(f"[WARN] Could not start tournament timer: {_e}")
 
-# WebSocket event handlers
-@socketio.on('connect')
-def handle_connect():
-    """Handle client connection"""
-    print('Client connected')
+# WebSocket event handlers with conditional registration
+if SOCKETIO_AVAILABLE and socketio:
+    @socketio.on('connect')
+    def handle_connect():
+        """Handle client connection"""
+        print('Client connected')
 
-@socketio.on('disconnect')
-def handle_disconnect():
-    """Handle client disconnection"""
-    print('Client disconnected')
+    @socketio.on('disconnect')
+    def handle_disconnect():
+        """Handle client disconnection"""
+        print('Client disconnected')
 
-@socketio.on('join_tournament')
-def handle_join_tournament():
-    """Handle client joining tournament room"""
-    active_tournament = Tournament.query.filter_by(active=True).first()
-    if active_tournament:
-        emit('tournament_update', {
-            'name': active_tournament.name,
-            'end_time': active_tournament.end_time.isoformat(),
-            'active': True
-        })
+    @socketio.on('join_tournament')
+    def handle_join_tournament():
+        """Handle client joining tournament room"""
+        active_tournament = Tournament.query.filter_by(active=True).first()
+        if active_tournament:
+            safe_emit('tournament_update', {
+                'name': active_tournament.name,
+                'end_time': active_tournament.end_time.isoformat(),
+                'active': True
+            })
 
-@socketio.on('join_leaderboard')
-def handle_join_leaderboard():
-    """Handle client joining leaderboard room"""
-    # Send initial leaderboard data
-    send_leaderboard_updates()
+    @socketio.on('join_leaderboard')
+    def handle_join_leaderboard():
+        """Handle client joining leaderboard room"""
+        # Send initial leaderboard data
+        send_leaderboard_updates()
 
 def send_leaderboard_updates():
     """Send leaderboard updates to all connected clients"""
@@ -587,12 +632,12 @@ def send_leaderboard_updates():
         } for team in teams]
         
         # Broadcast updates
-        socketio.emit('leaderboard_update', {
+        safe_socketio_emit('leaderboard_update', {
             'type': 'individual',
             'players': individual_data
         })
-        
-        socketio.emit('leaderboard_update', {
+
+        safe_socketio_emit('leaderboard_update', {
             'type': 'teams',
             'teams': teams_data
         })
@@ -1551,7 +1596,7 @@ def submit_flag(challenge_id):
             
             # Send real-time updates
             try:
-                socketio.emit('score_update', {
+                safe_socketio_emit('score_update', {
                     'username': user.username,
                     'score': user.score
                 })
@@ -1726,7 +1771,7 @@ def api_submit_flag(challenge_id):
             db.session.commit()
             # Realtime
             try:
-                socketio.emit('score_update', {'username': user.username, 'score': user.score})
+                safe_socketio_emit('score_update', {'username': user.username, 'score': user.score})
                 send_leaderboard_updates()
             except Exception:
                 pass
@@ -2257,7 +2302,7 @@ def activate_tournament(tournament_id):
     t.active = True
     db.session.commit()
     try:
-        socketio.emit('tournament_start', {'name': t.name, 'end_time': t.end_time.isoformat()})
+        safe_socketio_emit('tournament_start', {'name': t.name, 'end_time': t.end_time.isoformat()})
     except Exception:
         pass
     
@@ -2283,7 +2328,7 @@ def deactivate_tournament(tournament_id):
     t.active = False
     db.session.commit()
     try:
-        socketio.emit('tournament_end', {'name': t.name})
+        safe_socketio_emit('tournament_end', {'name': t.name})
     except Exception:
         pass
     
@@ -2873,7 +2918,7 @@ def reveal_hint(hint_id):
         )
         
         try:
-            socketio.emit('score_update', {
+            safe_socketio_emit('score_update', {
                 'username': user.username,
                 'score': user.score
             })
@@ -4068,7 +4113,7 @@ def create_notification(user_id, title, message, notification_type, related_id=N
         db.session.commit()
         
         # Emit WebSocket notification to user
-        socketio.emit('new_notification', {
+        safe_socketio_emit('new_notification', {
             'id': notification.id,
             'title': notification.title,
             'message': notification.message,
@@ -4207,7 +4252,7 @@ def api_send_message():
         db.session.commit()
         
         # Emit WebSocket message to all users
-        socketio.emit('new_chat_message', {
+        safe_socketio_emit('new_chat_message', {
             'id': chat_message.id,
             'username': user.username,
             'message': message_text,
@@ -4770,8 +4815,12 @@ if __name__ == "__main__":
         start_progress_updater()
         print("Background tasks started successfully")
         
-        print(f"Starting Flask-SocketIO server on port {Config.PORT}...")
-        socketio.run(app, host='0.0.0.0', debug=Config.DEBUG, port=Config.PORT)
+        if SOCKETIO_AVAILABLE and socketio:
+            print(f"Starting Flask-SocketIO server on port {Config.PORT}...")
+            socketio.run(app, host='0.0.0.0', debug=Config.DEBUG, port=Config.PORT)
+        else:
+            print(f"Starting Flask server on port {Config.PORT}...")
+            app.run(host='0.0.0.0', debug=Config.DEBUG, port=Config.PORT)
         
     except Exception as e:
         print(f"Error starting application: {e}")
