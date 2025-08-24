@@ -76,6 +76,16 @@ try:
     else:
         print("WARNING: DATABASE_URL not set - will use SQLite fallback")
 
+    # Run minimal import test first
+    print("Running minimal import test...")
+    try:
+        import test_minimal
+        print("✅ Minimal import test completed")
+    except Exception as e:
+        print(f"❌ Minimal import test failed: {e}")
+        import traceback
+        traceback.print_exc()
+
     print("Importing CTF_GAME...")
     try:
         from CTF_GAME import app, db
