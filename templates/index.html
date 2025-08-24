@@ -1,55 +1,207 @@
-<!-- templates/index.html -->
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                <title>HUNTING-CTF</title>
-  <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
-  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-  <script src="{{ url_for('static', filename='theme.js') }}"></script>
-</head>
-<body>
-  <!-- Theme Toggle -->
-  <div class="theme-toggle-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
-    <button class="theme-toggle" aria-label="Toggle theme">
-      <i class="fas fa-moon"></i>
-    </button>
-  </div>
+{% extends "base.html" %}
 
-  <div class="container glass">
-                    <h1><i class="fas fa-shield-alt"></i> Welcome to HUNTING-CTF</h1>
-    <p>Your gateway to hacking challenges and puzzles!</p>
-    <div class="btn-group" style="display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;">
-      <a class="btn" href="/login">
-        <i class="fas fa-sign-in-alt"></i> Login
-      </a>
-      <a class="btn" href="/register">
-        <i class="fas fa-user-plus"></i> Register
-      </a>
+{% block title %}Home - HUNTING-CTF{% endblock %}
+
+{% block content %}
+<!-- Hero Section -->
+<div class="hero-section fade-in">
+    <h1 class="display-4 fw-bold mb-4">
+        <i class="fas fa-flag text-primary"></i> Welcome to HUNTING-CTF
+    </h1>
+    <p class="lead mb-4">
+        Test your cybersecurity skills with our challenging Capture The Flag platform.
+        Solve puzzles, learn new techniques, and compete with fellow hackers.
+    </p>
+    {% if not current_user %}
+    <div class="d-flex gap-3 justify-content-center flex-wrap">
+        <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
+            <i class="fas fa-user-plus"></i> Get Started
+        </a>
+        <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">
+            <i class="fas fa-sign-in-alt"></i> Login
+        </a>
     </div>
-  </div>
-
-  {% with messages = get_flashed_messages(with_categories=true) %}
-    {% if messages %}
-      <script>
-        {% for category, message in messages %}
-          Swal.fire({
-            icon: "{{ category }}",  // success, error, info, warning
-            title: "{{ message }}",
-            toast: true,
-            position: 'top-end',
-            showConfirmButton: false,
-            timer: 3000,
-            timerProgressBar: true
-          });
-        {% endfor %}
-      </script>
+    {% else %}
+    <div class="d-flex gap-3 justify-content-center flex-wrap">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        <a href="{{ url_for('challenges') }}" class="btn btn-outline-primary btn-lg">
+            <i class="fas fa-puzzle-piece"></i> Challenges
+        </a>
+    </div>
     {% endif %}
-  {% endwith %}
-  {% include '_contact_footer.html' %}
-</body>
-</html>
+</div>
+
+<!-- Statistics Cards -->
+<div class="row mb-5">
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-puzzle-piece fa-2x mb-3"></i>
+                <div class="stats-number">{{ total_challenges }}</div>
+                <h5 class="card-title">Challenges</h5>
+                <p class="card-text">Active challenges waiting to be solved</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-2x mb-3"></i>
+                <div class="stats-number">{{ total_users }}</div>
+                <h5 class="card-title">Players</h5>
+                <p class="card-text">Registered cybersecurity enthusiasts</p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-3">
+        <div class="card stats-card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-trophy fa-2x mb-3"></i>
+                <div class="stats-number">{{ user_score if current_user else '---' }}</div>
+                <h5 class="card-title">Your Score</h5>
+                <p class="card-text">
+                    {% if current_user %}
+                        Rank #{{ user_rank }} • {{ user_solves }} solves
+                    {% else %}
+                        Login to see your score
+                    {% endif %}
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% if current_user %}
+<!-- User Dashboard Preview -->
+<div class="row">
+    <div class="col-lg-8 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-clock"></i> Recent Activity
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if recent_solves %}
+                <div class="list-group list-group-flush">
+                    {% for solve, challenge in recent_solves %}
+                    <div class="list-group-item bg-transparent border-0 px-0">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <h6 class="mb-1 text-success">
+                                    <i class="fas fa-check-circle"></i> {{ challenge.title }}
+                                </h6>
+                                <small class="text-muted">
+                                    Solved {{ solve.solved_at.strftime('%B %d, %Y at %I:%M %p') }}
+                                </small>
+                            </div>
+                            <span class="badge bg-primary">+{{ challenge.points }} pts</span>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+                <div class="text-center mt-3">
+                    <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary">
+                        <i class="fas fa-eye"></i> View All Activity
+                    </a>
+                </div>
+                {% else %}
+                <div class="text-center py-4">
+                    <i class="fas fa-puzzle-piece fa-3x text-muted mb-3"></i>
+                    <h5 class="text-muted">No solves yet</h5>
+                    <p class="text-muted">Start solving challenges to see your activity here!</p>
+                    <a href="{{ url_for('challenges') }}" class="btn btn-primary">
+                        <i class="fas fa-play"></i> Start Solving
+                    </a>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-lg-4 mb-4">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-user-circle"></i> Your Progress
+                </h5>
+            </div>
+            <div class="card-body">
+                <div class="text-center mb-3">
+                    <div class="stats-number text-primary">{{ user_score }}</div>
+                    <p class="text-muted">Total Points</p>
+                </div>
+
+                <div class="row text-center">
+                    <div class="col-6">
+                        <h4 class="text-success">{{ user_solves }}</h4>
+                        <small class="text-muted">Solved</small>
+                    </div>
+                    <div class="col-6">
+                        <h4 class="text-warning">#{{ user_rank }}</h4>
+                        <small class="text-muted">Rank</small>
+                    </div>
+                </div>
+
+                <div class="mt-3">
+                    <a href="{{ url_for('profile') }}" class="btn btn-outline-primary w-100">
+                        <i class="fas fa-chart-line"></i> View Full Profile
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% else %}
+<!-- Features for Non-logged Users -->
+<div class="row">
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-brain fa-3x text-primary mb-3"></i>
+                <h5 class="card-title">Learn & Practice</h5>
+                <p class="card-text">
+                    Enhance your cybersecurity skills with hands-on challenges covering various domains like web security, cryptography, and forensics.
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-users fa-3x text-success mb-3"></i>
+                <h5 class="card-title">Compete</h5>
+                <p class="card-text">
+                    Join a community of cybersecurity enthusiasts. Compete on the leaderboard and see how you rank against other players.
+                </p>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 mb-4">
+        <div class="card h-100">
+            <div class="card-body text-center">
+                <i class="fas fa-trophy fa-3x text-warning mb-3"></i>
+                <h5 class="card-title">Achieve</h5>
+                <p class="card-text">
+                    Earn points, unlock achievements, and track your progress as you master different cybersecurity concepts and techniques.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Call to Action -->
+<div class="text-center mt-5">
+    <h3 class="mb-4">Ready to Start Your Journey?</h3>
+    <p class="lead mb-4">Join thousands of cybersecurity enthusiasts and start solving challenges today!</p>
+    <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg me-3">
+        <i class="fas fa-rocket"></i> Create Account
+    </a>
+    <a href="{{ url_for('scoreboard') }}" class="btn btn-outline-primary btn-lg">
+        <i class="fas fa-eye"></i> View Leaderboard
+    </a>
+</div>
+{% endif %}
+{% endblock %}

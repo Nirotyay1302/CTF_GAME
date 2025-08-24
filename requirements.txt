@@ -12,19 +12,12 @@ cryptography==41.0.7
 
 # Database Drivers
 psycopg==3.2.9
-PyMySQL==1.1.1
+
 
 # Production Server
 gunicorn==23.0.0
 
-# Image Processing
-Pillow==10.4.0
 
-# Data Processing and Export
-openpyxl==3.1.5
-
-# HTTP and Networking
-requests==2.32.4
 
 # Configuration and Environment
 python-dotenv==1.1.1

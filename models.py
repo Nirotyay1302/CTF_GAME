@@ -1,5 +1,6 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
+from sqlalchemy.sql import func
 
 db = SQLAlchemy()
 
@@ -185,16 +186,22 @@ class ChatChannel(db.Model):
 
 class ChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    channel_id = db.Column(db.Integer, db.ForeignKey('chat_channel.id'), nullable=False)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    message_type = db.Column(db.String(20), nullable=True)
-    timestamp = db.Column(db.DateTime, nullable=True)
-    edited = db.Column(db.Boolean, default=False)
-    edited_at = db.Column(db.DateTime, nullable=True)
-    
+    room = db.Column(db.String(50), default='general')  # general, team, admin
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
     user = db.relationship('User', back_populates='chat_messages')
-    channel = db.relationship('ChatChannel', backref=db.backref('messages', lazy=True, cascade="all, delete-orphan"))
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'username': self.user.username if self.user else 'Unknown',
+            'content': self.content,
+            'room': self.room,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
 
 # Dynamic challenge generation
 class ChallengeTemplate(db.Model):
