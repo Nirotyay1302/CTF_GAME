@@ -86,15 +86,23 @@ try:
         import traceback
         traceback.print_exc()
 
-    print("Importing CTF_GAME...")
+    print("Testing with minimal app first...")
     try:
-        from CTF_GAME import app, db
-        print("Successfully imported CTF_GAME components")
+        from minimal_app import app
+        print("✅ Minimal app imported successfully")
+        db = None  # No database for minimal app
     except Exception as e:
-        print(f"❌ Error importing CTF_GAME: {e}")
-        print(f"Error type: {type(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"❌ Even minimal app failed: {e}")
+
+        # Last resort - create inline app
+        from flask import Flask
+        app = Flask(__name__)
+
+        @app.route('/')
+        def emergency():
+            return "<h1>Emergency Mode</h1><p>Basic Flask is working</p>"
+
+        db = None
 
         # Create a simple Flask app to show the error
         from flask import Flask
