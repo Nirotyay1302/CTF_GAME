@@ -21,12 +21,36 @@ class User(db.Model):
     country = db.Column(db.String(100), nullable=True)
     timezone = db.Column(db.String(50), nullable=True)
     
+    # Timestamps
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    last_login = db.Column(db.DateTime)
+    is_active = db.Column(db.Boolean, default=True)
+
+    # Relationships
     submissions = db.relationship('Submission', backref='user', lazy=True)
-    # One-to-one membership in a team
+    solves = db.relationship('Solve', backref='user', lazy=True)
     team_membership = db.relationship('TeamMembership', backref='user', uselist=False, lazy=True)
+    notifications = db.relationship('Notification', backref='user', lazy=True)
+    chat_messages = db.relationship('ChatMessage', backref='user', lazy=True)
+    hints_purchased = db.relationship('UserHint', backref='user', lazy=True)
+
+    # Streak tracking
     last_solve_date = db.Column(db.Date, nullable=True)
     current_streak = db.Column(db.Integer, default=0)
     longest_streak = db.Column(db.Integer, default=0)
+
+    def __repr__(self):
+        return f'<User {self.username}>'
+
+    @property
+    def is_admin(self):
+        return self.role == 'admin'
+
+    @property
+    def full_name(self):
+        if self.first_name and self.last_name:
+            return f"{self.first_name} {self.last_name}"
+        return self.username
 
 class Challenge(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -51,7 +75,11 @@ class Solve(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     challenge_id = db.Column(db.Integer, db.ForeignKey('challenge.id'), nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    solved_at = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # Keep for compatibility
+
+    # Relationships
+    challenge = db.relationship('Challenge', backref='solves', lazy=True)
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -61,11 +89,16 @@ class AuditLog(db.Model):
 
 class Submission(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))
-    challenge_id = db.Column(db.Integer, db.ForeignKey('challenge.id'))
-    submitted_flag = db.Column(db.String(150))
-    correct = db.Column(db.Boolean, default=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    challenge_id = db.Column(db.Integer, db.ForeignKey('challenge.id'), nullable=False)
+    submitted_flag = db.Column(db.String(150), nullable=False)
+    is_correct = db.Column(db.Boolean, default=False)
+    correct = db.Column(db.Boolean, default=False)  # Keep for compatibility
+    submitted_at = db.Column(db.DateTime, default=datetime.utcnow)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)  # Keep for compatibility
+
+    # Relationships
+    challenge = db.relationship('Challenge', backref='submissions', lazy=True)
 
 # Team play models
 class Team(db.Model):
@@ -213,6 +246,54 @@ class DockerInstance(db.Model):
     port_mappings = db.Column(db.Text, nullable=True)  # JSON of port mappings
     resource_usage = db.Column(db.Text, nullable=True)  # JSON of CPU/memory usage
     challenge = db.relationship('Challenge', backref=db.backref('docker_instances', lazy=True, cascade="all, delete-orphan"))
+
+# Notifications system
+class Notification(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    title = db.Column(db.String(200), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    type = db.Column(db.String(20), default='info')  # info, success, warning, error
+    read = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'title': self.title,
+            'message': self.message,
+            'type': self.type,
+            'read': self.read,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+# Chat system
+class ChatMessage(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    message = db.Column(db.Text, nullable=False)
+    room = db.Column(db.String(50), default='general')  # general, team, admin
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'user_id': self.user_id,
+            'username': self.user.username if self.user else 'Unknown',
+            'message': self.message,
+            'room': self.room,
+            'created_at': self.created_at.isoformat() if self.created_at else None
+        }
+
+# User hints purchased
+class UserHint(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    hint_id = db.Column(db.Integer, db.ForeignKey('hint.id'), nullable=False)
+    purchased_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    hint = db.relationship('Hint', backref='purchases', lazy=True)
 
 # Hints for challenges
 class Hint(db.Model):

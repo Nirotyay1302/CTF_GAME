@@ -38,91 +38,99 @@ try:
         except ImportError:
             print("psycopg2 not available")
 
-    print("🚀 Loading working CTF application...")
+    print("🚀 Loading full CTF application...")
 
-    # Use minimal app as the working base
+    # Try to load the full CTF application
     try:
-        from minimal_app import app
-        print("✅ Minimal app loaded successfully")
-
-        # Add the enhanced challenges route directly
-        from flask import render_template, request, jsonify
-
-        # Override the existing challenges route with enhanced version
-        @app.route('/challenges/enhanced')
-        def challenges_enhanced():
-            return render_template('challenges.html',
-                                 challenges=[],
-                                 solved_ids=set(),
-                                 categories=['web', 'crypto', 'pwn', 'reverse', 'forensics', 'misc'],
-                                 difficulties=['easy', 'medium', 'hard', 'expert'],
-                                 category_info={},
-                                 difficulty_info={},
-                                 category_filter='',
-                                 difficulty_filter='',
-                                 search_query='',
-                                 solved_filter='',
-                                 total_challenges=0,
-                                 solved_count=0,
-                                 total_points=0)
-
-        @app.route('/dashboard/modern')
-        def dashboard_modern():
-            return render_template('dashboard_modern.html')
-
-        @app.route('/api/dashboard/stats')
-        def api_dashboard_stats():
-            return jsonify({
-                'success': True,
-                'username': 'Demo User',
-                'user_score': 1337,
-                'challenges_solved': 15,
-                'total_challenges': 50,
-                'total_users': 100,
-                'user_rank': 5
-            })
-
-        @app.route('/api/challenges/categories')
-        def api_challenge_categories():
-            return jsonify({
-                'success': True,
-                'categories': {
-                    'web': {'name': 'Web Security', 'icon': 'fas fa-globe', 'color': '#3b82f6'},
-                    'crypto': {'name': 'Cryptography', 'icon': 'fas fa-lock', 'color': '#8b5cf6'},
-                    'pwn': {'name': 'Binary Exploitation', 'icon': 'fas fa-bug', 'color': '#ef4444'},
-                    'reverse': {'name': 'Reverse Engineering', 'icon': 'fas fa-undo', 'color': '#f59e0b'},
-                    'forensics': {'name': 'Digital Forensics', 'icon': 'fas fa-search', 'color': '#10b981'},
-                    'misc': {'name': 'Miscellaneous', 'icon': 'fas fa-puzzle-piece', 'color': '#06b6d4'}
-                },
-                'difficulties': {
-                    'easy': {'name': 'Easy', 'icon': 'fas fa-star', 'color': '#22c55e'},
-                    'medium': {'name': 'Medium', 'icon': 'fas fa-star-half-alt', 'color': '#f59e0b'},
-                    'hard': {'name': 'Hard', 'icon': 'fas fa-fire', 'color': '#ef4444'},
-                    'expert': {'name': 'Expert', 'icon': 'fas fa-crown', 'color': '#8b5cf6'}
-                }
-            })
-
-        print("✅ Enhanced routes added successfully")
-        db = None  # No database needed for demo
+        from ctf_app_full import app, db
+        print("✅ Full CTF application loaded successfully")
 
     except Exception as e:
-        print(f"❌ Failed to load enhanced app: {e}")
+        print(f"❌ Failed to load full CTF app: {e}")
         import traceback
         traceback.print_exc()
 
-        # Emergency fallback
-        from flask import Flask
-        app = Flask(__name__)
+        # Fallback to minimal app with enhanced routes
+        try:
+            from minimal_app import app
+            print("✅ Fallback to minimal app with enhanced routes")
 
-        @app.route('/')
-        def emergency():
-            return f"""
-            <h1>🚨 CTF Game - Emergency Mode</h1>
-            <p>Error: {str(e)}</p>
-            <p>The application is in emergency mode but the enhanced features are ready to deploy.</p>
-            """
+            # Add the enhanced routes
+            from flask import render_template, request, jsonify
 
-        db = None
+            @app.route('/challenges/enhanced')
+            def challenges_enhanced():
+                return render_template('challenges.html',
+                                     challenges=[],
+                                     solved_ids=set(),
+                                     categories=['web', 'crypto', 'pwn', 'reverse', 'forensics', 'misc'],
+                                     difficulties=['easy', 'medium', 'hard', 'expert'],
+                                     category_info={},
+                                     difficulty_info={},
+                                     category_filter='',
+                                     difficulty_filter='',
+                                     search_query='',
+                                     solved_filter='',
+                                     total_challenges=0,
+                                     solved_count=0,
+                                     total_points=0)
+
+            @app.route('/dashboard/modern')
+            def dashboard_modern():
+                return render_template('dashboard_modern.html')
+
+            @app.route('/api/dashboard/stats')
+            def api_dashboard_stats():
+                return jsonify({
+                    'success': True,
+                    'username': 'Demo User',
+                    'user_score': 1337,
+                    'challenges_solved': 15,
+                    'total_challenges': 50,
+                    'total_users': 100,
+                    'user_rank': 5
+                })
+
+            @app.route('/api/challenges/categories')
+            def api_challenge_categories():
+                return jsonify({
+                    'success': True,
+                    'categories': {
+                        'web': {'name': 'Web Security', 'icon': 'fas fa-globe', 'color': '#3b82f6'},
+                        'crypto': {'name': 'Cryptography', 'icon': 'fas fa-lock', 'color': '#8b5cf6'},
+                        'pwn': {'name': 'Binary Exploitation', 'icon': 'fas fa-bug', 'color': '#ef4444'},
+                        'reverse': {'name': 'Reverse Engineering', 'icon': 'fas fa-undo', 'color': '#f59e0b'},
+                        'forensics': {'name': 'Digital Forensics', 'icon': 'fas fa-search', 'color': '#10b981'},
+                        'misc': {'name': 'Miscellaneous', 'icon': 'fas fa-puzzle-piece', 'color': '#06b6d4'}
+                    },
+                    'difficulties': {
+                        'easy': {'name': 'Easy', 'icon': 'fas fa-star', 'color': '#22c55e'},
+                        'medium': {'name': 'Medium', 'icon': 'fas fa-star-half-alt', 'color': '#f59e0b'},
+                        'hard': {'name': 'Hard', 'icon': 'fas fa-fire', 'color': '#ef4444'},
+                        'expert': {'name': 'Expert', 'icon': 'fas fa-crown', 'color': '#8b5cf6'}
+                    }
+                })
+
+            print("✅ Enhanced routes added to minimal app")
+            db = None  # No database for minimal app
+
+        except Exception as fallback_error:
+            print(f"❌ Fallback also failed: {fallback_error}")
+
+            # Emergency mode
+            from flask import Flask
+            app = Flask(__name__)
+
+            @app.route('/')
+            def emergency():
+                return f"""
+                <h1>🚨 CTF Game - Emergency Mode</h1>
+                <p>Primary Error: {str(e)}</p>
+                <p>Fallback Error: {str(fallback_error)}</p>
+                <p>The application is in emergency mode.</p>
+                """
+
+            db = None
 
     print("Successfully loaded application components")
 
