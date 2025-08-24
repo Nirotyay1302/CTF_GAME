@@ -41,16 +41,31 @@ app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///ctf.db')
+
+# Fix DATABASE_URL for psycopg3 compatibility
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///ctf.db')
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['WTF_CSRF_ENABLED'] = False  # Disable for API compatibility
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file upload
+app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
+    'pool_pre_ping': True,
+    'pool_recycle': 300,
+}
 
 # Initialize extensions
-db.init_app(app)
-migrate = Migrate(app, db)
-mail = Mail(app)
-compress = Compress(app)
+try:
+    db.init_app(app)
+    migrate = Migrate(app, db)
+    mail = Mail(app)
+    compress = Compress(app)
+    print("✅ Extensions initialized successfully")
+except Exception as e:
+    print(f"❌ Extension initialization failed: {e}")
+    raise
 
 # Initialize SocketIO if available
 if SOCKETIO_AVAILABLE:
