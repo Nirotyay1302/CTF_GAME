@@ -77,8 +77,41 @@ try:
         print("WARNING: DATABASE_URL not set - will use SQLite fallback")
 
     print("Importing CTF_GAME...")
-    from CTF_GAME import app, db
-    print("Successfully imported CTF_GAME components")
+    try:
+        from CTF_GAME import app, db
+        print("Successfully imported CTF_GAME components")
+    except Exception as e:
+        print(f"❌ Error importing CTF_GAME: {e}")
+        print(f"Error type: {type(e)}")
+        import traceback
+        traceback.print_exc()
+
+        # Create a simple Flask app to show the error
+        from flask import Flask
+        app = Flask(__name__)
+
+        @app.route('/')
+        def error_page():
+            return f"""
+            <h1>CTF Game - Import Error</h1>
+            <p>Error: {e}</p>
+            <p>Error type: {type(e)}</p>
+            <p>DATABASE_URL set: {bool(os.environ.get('DATABASE_URL'))}</p>
+            <pre>Detailed Error:
+{traceback.format_exc()}
+            </pre>
+            <a href="/database-status">Check Database Status</a>
+            """
+
+        @app.route('/database-status')
+        def database_status():
+            return f"""
+            <h1>Database Status</h1>
+            <p>DATABASE_URL: {bool(os.environ.get('DATABASE_URL'))}</p>
+            <p>Environment: {os.environ.get('RENDER', 'Not Render')}</p>
+            """
+
+        db = None  # Set db to None for error case
 
     # Apply Render configuration if available
     if RenderConfig:
