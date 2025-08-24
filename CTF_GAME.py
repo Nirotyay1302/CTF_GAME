@@ -227,7 +227,45 @@ app.jinja_env.auto_reload = False
 app.jinja_env.cache_size = 1000  # Increased cache size
 app.jinja_env.optimized = True
 
-mail = Mail(app)
+# Initialize database and extensions
+try:
+    from models import db
+    db.init_app(app)
+    print("✅ Database initialized successfully")
+except Exception as e:
+    print(f"❌ Database initialization failed: {e}")
+    # Fallback initialization
+    from flask_sqlalchemy import SQLAlchemy
+    db = SQLAlchemy(app)
+
+try:
+    migrate = Migrate(app, db) if db else None
+    print("✅ Migration initialized successfully")
+except Exception as e:
+    print(f"❌ Migration initialization failed: {e}")
+    migrate = None
+
+try:
+    mail = Mail(app)
+    print("✅ Mail initialized successfully")
+except Exception as e:
+    print(f"❌ Mail initialization failed: {e}")
+    mail = None
+
+# Import models after db initialization
+try:
+    from models import (
+        User, Challenge, Solve, Team, TeamMembership, Submission,
+        Tournament, Hint, UserHint, Notification, ChatMessage
+    )
+    print("✅ Models imported successfully")
+except Exception as e:
+    print(f"❌ Model import failed: {e}")
+    # Create minimal models if import fails
+    class User:
+        pass
+    class Challenge:
+        pass
 
 # Initialize SocketIO with error handling
 if SOCKETIO_AVAILABLE:
