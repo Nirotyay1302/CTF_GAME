@@ -31,7 +31,7 @@ class User(db.Model):
     solves = db.relationship('Solve', backref='user', lazy=True)
     team_membership = db.relationship('TeamMembership', backref='user', uselist=False, lazy=True)
     notifications = db.relationship('Notification', backref='user', lazy=True)
-    chat_messages = db.relationship('ChatMessage', backref='user', lazy=True)
+    chat_messages = db.relationship('ChatMessage', back_populates='user', lazy=True)
     hints_purchased = db.relationship('UserHint', backref='user', lazy=True)
 
     # Streak tracking
@@ -193,7 +193,7 @@ class ChatMessage(db.Model):
     edited = db.Column(db.Boolean, default=False)
     edited_at = db.Column(db.DateTime, nullable=True)
     
-    user = db.relationship('User', backref=db.backref('chat_messages', lazy=True, cascade="all, delete-orphan"))
+    user = db.relationship('User', back_populates='chat_messages')
     channel = db.relationship('ChatChannel', backref=db.backref('messages', lazy=True, cascade="all, delete-orphan"))
 
 # Dynamic challenge generation
