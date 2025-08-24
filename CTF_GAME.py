@@ -230,8 +230,12 @@ app.jinja_env.optimized = True
 # Initialize database and extensions
 try:
     from models import db
-    db.init_app(app)
-    print("✅ Database initialized successfully")
+    # Check if db is already initialized
+    if not hasattr(app, 'extensions') or 'sqlalchemy' not in app.extensions:
+        db.init_app(app)
+        print("✅ Database initialized successfully")
+    else:
+        print("✅ Database already initialized")
 except Exception as e:
     print(f"❌ Database initialization failed: {e}")
     # Fallback initialization
