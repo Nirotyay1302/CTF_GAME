@@ -230,17 +230,14 @@ app.jinja_env.optimized = True
 # Initialize database and extensions
 try:
     from models import db
-    # Check if db is already initialized
-    if not hasattr(app, 'extensions') or 'sqlalchemy' not in app.extensions:
-        db.init_app(app)
-        print("✅ Database initialized successfully")
-    else:
-        print("✅ Database already initialized")
+    # Don't call init_app again - it's already initialized in models.py
+    print("✅ Database imported successfully")
 except Exception as e:
-    print(f"❌ Database initialization failed: {e}")
+    print(f"❌ Database import failed: {e}")
     # Fallback initialization
     from flask_sqlalchemy import SQLAlchemy
     db = SQLAlchemy(app)
+    print("✅ Fallback database initialized")
 
 try:
     migrate = Migrate(app, db) if db else None
