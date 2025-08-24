@@ -48,8 +48,9 @@ try:
         # Add the enhanced challenges route directly
         from flask import render_template, request, jsonify
 
-        @app.route('/challenges')
-        def challenges():
+        # Override the existing challenges route with enhanced version
+        @app.route('/challenges/enhanced')
+        def challenges_enhanced():
             return render_template('challenges.html',
                                  challenges=[],
                                  solved_ids=set(),
@@ -117,7 +118,7 @@ try:
         def emergency():
             return f"""
             <h1>🚨 CTF Game - Emergency Mode</h1>
-            <p>Error: {e}</p>
+            <p>Error: {str(e)}</p>
             <p>The application is in emergency mode but the enhanced features are ready to deploy.</p>
             """
 
