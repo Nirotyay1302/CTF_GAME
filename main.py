@@ -148,26 +148,38 @@ def internal_error(error):
 def index():
     """Home page with statistics"""
     user = get_current_user()
-    
-    # Get basic stats
-    total_challenges = Challenge.query.count()
-    total_users = User.query.count()
-    
+
+    # Get basic stats with error handling
+    try:
+        total_challenges = Challenge.query.count()
+        total_users = User.query.count()
+    except Exception as e:
+        print(f"Database query error: {e}")
+        total_challenges = 0
+        total_users = 0
+
     if user:
-        user_solves = Solve.query.filter_by(user_id=user.id).count()
-        user_score = calculate_user_score(user.id)
-        user_rank = get_user_rank(user.id)
-        
-        # Get recent solves
-        recent_solves = db.session.query(Solve, Challenge).join(Challenge).filter(
-            Solve.user_id == user.id
-        ).order_by(Solve.solved_at.desc()).limit(5).all()
+        try:
+            user_solves = Solve.query.filter_by(user_id=user.id).count()
+            user_score = calculate_user_score(user.id)
+            user_rank = get_user_rank(user.id)
+
+            # Get recent solves
+            recent_solves = db.session.query(Solve, Challenge).join(Challenge).filter(
+                Solve.user_id == user.id
+            ).order_by(Solve.solved_at.desc()).limit(5).all()
+        except Exception as e:
+            print(f"User stats error: {e}")
+            user_solves = 0
+            user_score = 0
+            user_rank = 0
+            recent_solves = []
     else:
         user_solves = 0
         user_score = 0
         user_rank = 0
         recent_solves = []
-    
+
     return render_template('index.html',
                          total_challenges=total_challenges,
                          total_users=total_users,
@@ -632,21 +644,25 @@ if SOCKETIO_AVAILABLE:
 
 if __name__ == '__main__':
     with app.app_context():
-        db.create_all()
-        
-        # Create admin user if it doesn't exist
-        admin = User.query.filter_by(username='admin').first()
-        if not admin:
-            admin = User(
-                username='admin',
-                email='admin@ctf.local',
-                password_hash=generate_password_hash('admin123'),
-                role='admin'
-            )
-            db.session.add(admin)
-            db.session.commit()
-            print("Admin user created: admin/admin123")
-    
+        try:
+            db.create_all()
+            print("✅ Database tables created/verified")
+
+            # Create admin user if it doesn't exist
+            admin = User.query.filter_by(username='admin').first()
+            if not admin:
+                admin = User(
+                    username='admin',
+                    email='admin@ctf.local',
+                    password_hash=generate_password_hash('admin123'),
+                    role='admin'
+                )
+                db.session.add(admin)
+                db.session.commit()
+                print("✅ Admin user created: admin/admin123")
+        except Exception as e:
+            print(f"⚠️ Database initialization error: {e}")
+
     if SOCKETIO_AVAILABLE:
         socketio.run(app, debug=True, host='0.0.0.0', port=5000)
     else:

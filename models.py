@@ -28,12 +28,13 @@ class User(db.Model):
     is_active = db.Column(db.Boolean, default=True)
 
     # Relationships
-    submissions = db.relationship('Submission', backref='user', lazy=True)
-    solves = db.relationship('Solve', backref='user', lazy=True)
-    team_membership = db.relationship('TeamMembership', backref='user', uselist=False, lazy=True)
-    notifications = db.relationship('Notification', backref='user', lazy=True)
+    submissions = db.relationship('Submission', back_populates='user', lazy=True)
+    solves = db.relationship('Solve', back_populates='user', lazy=True)
+    team_membership = db.relationship('TeamMembership', back_populates='user', uselist=False, lazy=True)
+    notifications = db.relationship('Notification', back_populates='user', lazy=True)
     chat_messages = db.relationship('ChatMessage', back_populates='user', lazy=True)
-    hints_purchased = db.relationship('UserHint', backref='user', lazy=True)
+    hints_purchased = db.relationship('UserHint', back_populates='user', lazy=True)
+    progress_records = db.relationship('UserProgress', back_populates='user', lazy=True)
 
     # Streak tracking
     last_solve_date = db.Column(db.Date, nullable=True)
@@ -81,6 +82,7 @@ class Solve(db.Model):
 
     # Relationships
     challenge = db.relationship('Challenge', backref='solves', lazy=True)
+    user = db.relationship('User', back_populates='solves')
 
 class AuditLog(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -100,6 +102,7 @@ class Submission(db.Model):
 
     # Relationships
     challenge = db.relationship('Challenge', backref='submissions', lazy=True)
+    user = db.relationship('User', back_populates='submissions')
 
 # Team play models
 class Team(db.Model):
@@ -116,6 +119,9 @@ class TeamMembership(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     role = db.Column(db.String(20), nullable=False, default='member')
     joined_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    # Relationships
+    user = db.relationship('User', back_populates='team_membership')
 
 # Tournament/season models
 class Tournament(db.Model):
@@ -239,7 +245,7 @@ class UserProgress(db.Model):
     time_spent_minutes = db.Column(db.Integer, default=0)
     category_breakdown = db.Column(db.Text, nullable=True)  # JSON of solves per category
     difficulty_breakdown = db.Column(db.Text, nullable=True)  # JSON of solves per difficulty
-    user = db.relationship('User', backref=db.backref('progress_records', lazy=True, cascade="all, delete-orphan"))
+    user = db.relationship('User', back_populates='progress_records')
 
 # Docker container management
 class DockerInstance(db.Model):
@@ -264,6 +270,9 @@ class Notification(db.Model):
     read = db.Column(db.Boolean, default=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Relationships
+    user = db.relationship('User', back_populates='notifications')
+
     def to_dict(self):
         return {
             'id': self.id,
@@ -285,6 +294,7 @@ class UserHint(db.Model):
 
     # Relationships
     hint = db.relationship('Hint', backref='purchases', lazy=True)
+    user = db.relationship('User', back_populates='hints_purchased')
 
 # Hints for challenges
 class Hint(db.Model):
@@ -296,11 +306,6 @@ class Hint(db.Model):
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-# UserHint is already defined above, removing duplicate
-
-# Notification is already defined above, removing duplicate
-    priority = db.Column(db.String(20), default='normal')  # low, normal, high, urgent
-    
-    user = db.relationship('User', backref=db.backref('notifications', lazy=True, cascade="all, delete-orphan"))
+# UserHint and Notification are already defined above
 
 
