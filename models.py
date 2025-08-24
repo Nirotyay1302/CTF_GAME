@@ -267,23 +267,7 @@ class Notification(db.Model):
             'created_at': self.created_at.isoformat() if self.created_at else None
         }
 
-# Chat system
-class ChatMessage(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    message = db.Column(db.Text, nullable=False)
-    room = db.Column(db.String(50), default='general')  # general, team, admin
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
-    def to_dict(self):
-        return {
-            'id': self.id,
-            'user_id': self.user_id,
-            'username': self.user.username if self.user else 'Unknown',
-            'message': self.message,
-            'room': self.room,
-            'created_at': self.created_at.isoformat() if self.created_at else None
-        }
+# Note: ChatMessage is already defined above, using that one
 
 # User hints purchased
 class UserHint(db.Model):
@@ -299,30 +283,15 @@ class UserHint(db.Model):
 class Hint(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     challenge_id = db.Column(db.Integer, db.ForeignKey('challenge.id'), nullable=False)
-    text = db.Column(db.Text, nullable=False)
+    content = db.Column(db.Text, nullable=False)  # Changed from 'text' to 'content'
     cost = db.Column(db.Integer, nullable=False, default=5)
     display_order = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
-# Track which user has revealed which hints
-class UserHint(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    hint_id = db.Column(db.Integer, db.ForeignKey('hint.id'), nullable=False)
-    revealed_at = db.Column(db.DateTime, default=datetime.utcnow)
+# UserHint is already defined above, removing duplicate
 
-# Notification system
-class Notification(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
-    title = db.Column(db.String(200), nullable=False)
-    message = db.Column(db.Text, nullable=False)
-    notification_type = db.Column(db.String(50), nullable=False)  # score_change, team_update, challenge_solved, hint_used, achievement, system
-    related_id = db.Column(db.Integer, nullable=True)  # ID of related object (challenge_id, team_id, etc.)
-    related_type = db.Column(db.String(50), nullable=True)  # Type of related object
-    read = db.Column(db.Boolean, default=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+# Notification is already defined above, removing duplicate
     priority = db.Column(db.String(20), default='normal')  # low, normal, high, urgent
     
     user = db.relationship('User', backref=db.backref('notifications', lazy=True, cascade="all, delete-orphan"))
