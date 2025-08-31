@@ -70,6 +70,9 @@ class Challenge(db.Model):
     flag_hash = db.Column(db.LargeBinary, nullable=True)
     # Optional per-challenge docker image for isolated instances
     docker_image = db.Column(db.String(200), nullable=True)
+    # Answer explanation and solution
+    answer_explanation = db.Column(db.Text, nullable=True)
+    solution_steps = db.Column(db.Text, nullable=True)
     # Hints available for this challenge
     hints = db.relationship('Hint', backref='challenge', lazy=True, cascade='all, delete-orphan')
 
@@ -194,19 +197,35 @@ class ChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    room = db.Column(db.String(50), default='general')  # general, team, admin
+    room = db.Column(db.String(50), default='general')  # general, team-{team_id}, admin
+    team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)  # For team-specific messages
+    message_type = db.Column(db.String(20), default='text')  # text, system, announcement
+    edited = db.Column(db.Boolean, default=False)
+    edited_at = db.Column(db.DateTime, nullable=True)
+    reply_to_id = db.Column(db.Integer, db.ForeignKey('chat_message.id'), nullable=True)  # For replies
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
     user = db.relationship('User', back_populates='chat_messages')
+    team = db.relationship('Team', backref='chat_messages')
+    reply_to = db.relationship('ChatMessage', remote_side=[id], backref='replies')
 
     def to_dict(self):
         return {
             'id': self.id,
             'user_id': self.user_id,
             'username': self.user.username if self.user else 'Unknown',
+            'user_avatar': self.user.profile_picture if self.user and self.user.profile_picture else None,
             'content': self.content,
             'room': self.room,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            'team_id': self.team_id,
+            'message_type': self.message_type,
+            'edited': self.edited,
+            'edited_at': self.edited_at.isoformat() if self.edited_at else None,
+            'reply_to_id': self.reply_to_id,
+            'reply_to': self.reply_to.to_dict() if self.reply_to else None,
+            'created_at': self.created_at.isoformat() if self.created_at else None,
+            'timestamp': self.created_at.strftime('%H:%M') if self.created_at else None,
+            'date': self.created_at.strftime('%Y-%m-%d') if self.created_at else None
         }
 
 # Dynamic challenge generation

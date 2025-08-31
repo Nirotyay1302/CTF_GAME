@@ -1,119 +1,339 @@
-<!DOCTYPE html>
-<html lang="en" data-theme="dark">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>Teams - HUNTING-CTF</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}" />
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}" />
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="{{ url_for('static', filename='theme.js') }}"></script>
-  </head>
-  <body>
-    <!-- Theme Toggle -->
-    <div class="theme-toggle-container" style="position: fixed; top: 20px; right: 20px; z-index: 1000;">
-      <button class="theme-toggle" aria-label="Toggle theme">
-        <i class="fas fa-moon"></i>
-      </button>
-    </div>
+{% extends "base.html" %}
 
-    <link rel="stylesheet" href="{{ url_for('static', filename='teams.css') }}">
-    <div class="teams-wrapper">
-      <div class="teams-hero">
-        <h1><i class="fas fa-users"></i> Teams</h1>
-        <p>Create or join a team to collaborate and climb the leaderboard together.</p>
-        <div class="teams-actions">
-          <a class="btn" href="{{ url_for('dashboard') }}"><i class="fas fa-arrow-left"></i> Back to Dashboard</a>
-          <a class="btn" href="{{ url_for('team_scoreboard') }}"><i class="fas fa-trophy"></i> Team Leaderboard</a>
-        </div>
-      </div>
+{% block title %}Team Management - HUNTING-CTF{% endblock %}
 
-      <div class="teams-grid">
-        <div class="panel">
-          <h3><i class="fas fa-plus-circle"></i> Create Team</h3>
-          {% if not my_membership %}
-          <form method="POST">
-            <input type="text" name="name" placeholder="Team name" required />
-            <button type="submit" class="btn"><i class="fas fa-plus"></i> Create & Join</button>
-          </form>
-          {% else %}
-          <p class="muted">You are already in a team.</p>
-          {% endif %}
-
-          <div class="divider"></div>
-
-          <h3><i class="fas fa-key"></i> Join by Team Code</h3>
-          {% if not my_membership %}
-          <form method="POST" action="{{ url_for('join_team_by_code') }}">
-            <input type="text" name="team_code" placeholder="Enter team code (e.g., ABC123)" required style="text-transform: uppercase;" maxlength="6" />
-            <button type="submit" class="btn" style="background: var(--accent-info);"><i class="fas fa-sign-in-alt"></i> Join Team</button>
-          </form>
-          {% else %}
-          <p class="muted">You are already in a team.</p>
-          {% endif %}
-          <div class="notice">Tip: Team codes are 6 characters, letters and numbers.</div>
-        </div>
-
-        <div class="panel">
-          <h3><i class="fas fa-list"></i> All Teams</h3>
-          {% if teams %}
-          <div class="team-list">
-            {% for team in teams %}
-            <div class="team-card">
-              <div class="team-card__header">
-                <div>
-                  <h4 class="team-card__title">{{ team.name }}</h4>
-                  <div class="badge-code">Code: {{ team.team_code }}</div>
+{% block content %}
+<!-- Team Management Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card bg-gradient-primary text-white">
+            <div class="card-body">
+                <div class="row align-items-center">
+                    <div class="col">
+                        <h1 class="display-5 fw-bold mb-2">
+                            <i class="fas fa-users"></i> Team Management
+                        </h1>
+                        <p class="lead mb-0">Create, join, or manage your CTF team collaboration.</p>
+                    </div>
+                    <div class="col-auto">
+                        {% if user_team %}
+                            <span class="badge bg-light text-primary fs-6 px-3 py-2">
+                                <i class="fas fa-shield-alt"></i> {{ user_team.name }}
+                            </span>
+                        {% else %}
+                            <span class="badge bg-warning text-dark fs-6 px-3 py-2">
+                                <i class="fas fa-user"></i> Solo Player
+                            </span>
+                        {% endif %}
+                    </div>
                 </div>
-                <div class="team-card__actions">
-                  {% if not my_membership or my_membership.team_id != team.id %}
-                  <form method="POST" action="{{ url_for('join_team') }}">
-                    <input type="hidden" name="team_id" value="{{ team.id }}" />
-                    <button type="submit" class="btn" style="background: var(--accent-success);"><i class="fas fa-plus"></i> Join</button>
-                  </form>
-                  {% else %}
-                  <form method="POST" action="{{ url_for('leave_team') }}">
-                    <button type="submit" class="btn" style="background: var(--accent-danger);"><i class="fas fa-sign-out-alt"></i> Leave</button>
-                  </form>
-                  {% endif %}
-                </div>
-              </div>
-              {% if team_members[team.id] %}
-              <div class="team-card__members">
-                <div class="team-card__meta">
-                  <span class="meta-chip"><i class="fas fa-user"></i> {{ team_members[team.id]|length }} member{{ 's' if team_members[team.id]|length != 1 else '' }}</span>
-                </div>
-                <ul>
-                  {% for member in team_members[team.id] %}
-                  <li>
-                    {{ member.username }} ({{ member.score }} pts)
-                    {% if my_team and my_team.id == team.id %}
-                      <span style="color: var(--accent-success);">{% if loop.first %}👑{% endif %}</span>
-                    {% endif %}
-                  </li>
-                  {% endfor %}
-                </ul>
-              </div>
-              {% endif %}
             </div>
-            {% endfor %}
-          </div>
-          {% else %}
-          <p class="muted">No teams yet. Be the first to create one!</p>
-          {% endif %}
         </div>
-      </div>
-
-      {% if my_team %}
-      <div class="panel" style="margin-top: 18px; border-color: var(--accent-success);">
-        <h3 style="color: var(--accent-success); margin-top: 0;"><i class="fas fa-crown"></i> Your Team: {{ my_team.name }}</h3>
-        <p class="muted" style="margin-bottom: 12px;">Collaborate with your teammates to solve challenges and climb the leaderboard!</p>
-        <a href="{{ url_for('team_scoreboard') }}" class="btn" style="background: var(--accent-primary); color: var(--button-text);"><i class="fas fa-trophy"></i> View Team Leaderboard</a>
-      </div>
-      {% endif %}
     </div>
-    {% include '_contact_footer.html' %}
-  </body>
-</html>
+</div>
 
+<!-- Team Status Section -->
+<div class="row mb-4">
+    {% if user_team %}
+        <!-- Current Team Info -->
+        <div class="col-lg-8 mb-4">
+            <div class="card team-card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-shield-alt"></i> Your Team: {{ user_team.name }}
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <div class="team-info-item">
+                                <i class="fas fa-key text-primary"></i>
+                                <strong>Team Code:</strong>
+                                <code class="team-code">{{ user_team.team_code }}</code>
+                                <button class="btn btn-sm btn-outline-primary ms-2" onclick="copyTeamCode('{{ user_team.team_code }}')">
+                                    <i class="fas fa-copy"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="team-info-item">
+                                <i class="fas fa-calendar text-primary"></i>
+                                <strong>Created:</strong> {{ user_team.created_at.strftime('%B %d, %Y') }}
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Team Members -->
+                    <h6 class="mb-3"><i class="fas fa-users"></i> Team Members</h6>
+                    <div class="team-members">
+                        {% for membership in user_team.memberships %}
+                        <div class="member-item">
+                            <div class="member-avatar">
+                                {% if membership.user.profile_picture %}
+                                    <img src="{{ url_for('profile_picture', filename=membership.user.profile_picture) }}"
+                                         alt="{{ membership.user.username }}" class="rounded-circle">
+                                {% else %}
+                                    <div class="default-avatar">
+                                        {{ membership.user.username[0].upper() }}
+                                    </div>
+                                {% endif %}
+                            </div>
+                            <div class="member-info">
+                                <div class="member-name">{{ membership.user.username }}</div>
+                                <div class="member-role">
+                                    {% if membership.role == 'leader' %}
+                                        <span class="badge bg-warning text-dark">
+                                            <i class="fas fa-crown"></i> Leader
+                                        </span>
+                                    {% else %}
+                                        <span class="badge bg-secondary">
+                                            <i class="fas fa-user"></i> Member
+                                        </span>
+                                    {% endif %}
+                                </div>
+                            </div>
+                            <div class="member-actions">
+                                {% if user_membership.role == 'leader' and membership.user_id != session['user_id'] %}
+                                    {% if membership.role != 'leader' %}
+                                        <form method="POST" action="{{ url_for('promote_member', user_id=membership.user_id) }}" class="d-inline">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning"
+                                                    onclick="return confirm('Promote {{ membership.user.username }} to team leader?')">
+                                                <i class="fas fa-arrow-up"></i> Promote
+                                            </button>
+                                        </form>
+                                    {% endif %}
+                                    <form method="POST" action="{{ url_for('kick_member', user_id=membership.user_id) }}" class="d-inline">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger"
+                                                onclick="return confirm('Remove {{ membership.user.username }} from the team?')">
+                                            <i class="fas fa-user-times"></i> Remove
+                                        </button>
+                                    </form>
+                                {% endif %}
+                            </div>
+                        </div>
+                        {% endfor %}
+                    </div>
+
+                    <!-- Team Leader Controls -->
+                    {% if user_membership.role == 'leader' %}
+                    <div class="team-leader-controls mt-4 p-3 bg-warning bg-opacity-10 border border-warning rounded">
+                        <h6 class="text-warning mb-3">
+                            <i class="fas fa-crown"></i> Team Leader Controls
+                        </h6>
+                        <div class="row">
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-primary">
+                                    <div class="card-header bg-primary text-white">
+                                        <h6 class="mb-0"><i class="fas fa-user-plus"></i> Invite Members</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="small text-muted mb-2">Share this code with new members:</p>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" value="{{ user_team.team_code }}" readonly>
+                                            <button class="btn btn-outline-primary" onclick="copyTeamCode('{{ user_team.team_code }}')">
+                                                <i class="fas fa-copy"></i>
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6 mb-3">
+                                <div class="card border-danger">
+                                    <div class="card-header bg-danger text-white">
+                                        <h6 class="mb-0"><i class="fas fa-trash"></i> Delete Team</h6>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="small text-muted mb-2">Permanently delete this team:</p>
+                                        <form method="POST" action="{{ url_for('delete_team') }}" class="d-inline">
+                                            <button type="submit" class="btn btn-danger btn-sm w-100"
+                                                    onclick="return confirm('Are you sure you want to delete the team? This action cannot be undone!')">
+                                                <i class="fas fa-trash"></i> Delete Team
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    <!-- Team Actions -->
+                    <div class="team-actions mt-4">
+                        <form method="POST" action="{{ url_for('leave_team') }}" class="d-inline">
+                            <button type="submit" class="btn btn-danger"
+                                    onclick="return confirm('Are you sure you want to leave the team?')">
+                                <i class="fas fa-sign-out-alt"></i> Leave Team
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Team Stats -->
+        <div class="col-lg-4 mb-4">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0"><i class="fas fa-chart-bar"></i> Team Statistics</h6>
+                </div>
+                <div class="card-body">
+                    <div class="stat-item">
+                        <div class="stat-number">{{ user_team.memberships|length }}</div>
+                        <div class="stat-label">Members</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">
+                            {% set team_solves = 0 %}
+                            {% for membership in user_team.memberships %}
+                                {% set team_solves = team_solves + membership.user.solves|length %}
+                            {% endfor %}
+                            {{ team_solves }}
+                        </div>
+                        <div class="stat-label">Total Solves</div>
+                    </div>
+                    <div class="stat-item">
+                        <div class="stat-number">
+                            {% set team_points = 0 %}
+                            {% for membership in user_team.memberships %}
+                                {% for solve in membership.user.solves %}
+                                    {% set team_points = team_points + solve.challenge.points %}
+                                {% endfor %}
+                            {% endfor %}
+                            {{ team_points }}
+                        </div>
+                        <div class="stat-label">Total Points</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    {% else %}
+        <!-- No Team - Create or Join -->
+        <div class="col-lg-6 mb-4">
+            <div class="card team-action-card">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-plus-circle"></i> Create New Team
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Start your own team and invite others to join.</p>
+                    <form method="POST" action="{{ url_for('create_team') }}">
+                        <div class="mb-3">
+                            <label for="team_name" class="form-label">Team Name</label>
+                            <input type="text" class="form-control" id="team_name" name="team_name"
+                                   placeholder="Enter team name" required minlength="3" maxlength="50">
+                            <div class="form-text">3-50 characters, must be unique</div>
+                        </div>
+                        <button type="submit" class="btn btn-primary w-100">
+                            <i class="fas fa-plus"></i> Create Team
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+
+        <div class="col-lg-6 mb-4">
+            <div class="card team-action-card">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-sign-in-alt"></i> Join Existing Team
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <p class="text-muted mb-3">Join a team using their unique team code.</p>
+                    <form method="POST" action="{{ url_for('join_team') }}">
+                        <div class="mb-3">
+                            <label for="team_code" class="form-label">Team Code</label>
+                            <input type="text" class="form-control" id="team_code" name="team_code"
+                                   placeholder="Enter team code" required style="text-transform: uppercase;">
+                            <div class="form-text">Ask your team leader for the team code</div>
+                        </div>
+                        <button type="submit" class="btn btn-success w-100">
+                            <i class="fas fa-sign-in-alt"></i> Join Team
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    {% endif %}
+</div>
+
+<!-- All Teams List -->
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">
+                    <i class="fas fa-list"></i> All Teams
+                    <span class="badge bg-primary ms-2">{{ team_stats|length }} Teams</span>
+                </h5>
+            </div>
+            <div class="card-body">
+                {% if team_stats %}
+                    <div class="table-responsive">
+                        <table class="table table-hover">
+                            <thead>
+                                <tr>
+                                    <th><i class="fas fa-shield-alt"></i> Team Name</th>
+                                    <th><i class="fas fa-users"></i> Members</th>
+                                    <th><i class="fas fa-trophy"></i> Solves</th>
+                                    <th><i class="fas fa-calendar"></i> Created</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for stat in team_stats %}
+                                <tr {% if user_team and stat.team.id == user_team.id %}class="table-success"{% endif %}>
+                                    <td>
+                                        <strong>{{ stat.team.name }}</strong>
+                                        {% if user_team and stat.team.id == user_team.id %}
+                                            <span class="badge bg-success ms-2">Your Team</span>
+                                        {% endif %}
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-secondary">{{ stat.member_count }}</span>
+                                    </td>
+                                    <td>
+                                        <span class="badge bg-primary">{{ stat.solve_count }}</span>
+                                    </td>
+                                    <td>{{ stat.team.created_at.strftime('%b %d, %Y') }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                {% else %}
+                    <div class="text-center py-4">
+                        <i class="fas fa-users fa-3x text-muted mb-3"></i>
+                        <h5 class="text-muted">No Teams Yet</h5>
+                        <p class="text-muted">Be the first to create a team!</p>
+                    </div>
+                {% endif %}
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyTeamCode(code) {
+    navigator.clipboard.writeText(code).then(function() {
+        const btn = event.target.closest('button');
+        const originalHTML = btn.innerHTML;
+        btn.innerHTML = '<i class="fas fa-check"></i>';
+        btn.classList.remove('btn-outline-primary');
+        btn.classList.add('btn-success');
+
+        setTimeout(() => {
+            btn.innerHTML = originalHTML;
+            btn.classList.remove('btn-success');
+            btn.classList.add('btn-outline-primary');
+        }, 2000);
+    });
+}
+
+document.getElementById('team_code')?.addEventListener('input', function(e) {
+    e.target.value = e.target.value.toUpperCase();
+});
+</script>
+{% endblock %}

@@ -258,26 +258,427 @@
             flex-wrap: wrap;
         }
 
-        .filter-btn {
-            background: var(--bg-tertiary);
+        /* Enhanced Category Tabs Container */
+        .category-tabs-container {
+            background: var(--bg-card);
             border: 1px solid var(--border-color);
-            color: var(--text-secondary);
-            padding: 0.5rem 1rem;
-            border-radius: 0.5rem;
-            font-size: 0.875rem;
-            cursor: pointer;
-            transition: all 0.2s;
+            border-radius: 1rem;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
         }
 
-        .filter-btn:hover {
-            background: var(--border-color);
+        .category-tabs-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #3b82f6, #8b5cf6, #06b6d4, #10b981, #f59e0b, #ef4444);
+        }
+
+        .tabs-title {
+            color: var(--text-primary);
+            font-size: 1.5rem;
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .tabs-title i {
+            color: var(--accent-primary);
+            font-size: 1.25rem;
+        }
+
+        /* Category Tabs Grid */
+        .category-tabs {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+
+        .category-tab {
+            background: var(--bg-secondary);
+            border: 2px solid var(--border-color);
+            border-radius: 1rem;
+            padding: 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            position: relative;
+            overflow: hidden;
+            text-align: left;
+        }
+
+        .category-tab::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: var(--cat-web);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .category-tab:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow-xl);
+            border-color: var(--accent-primary);
+        }
+
+        .category-tab:hover::before {
+            transform: scaleX(1);
+        }
+
+        .category-tab.active {
+            background: linear-gradient(135deg, var(--accent-primary) 0%, rgba(59, 130, 246, 0.1) 100%);
+            border-color: var(--accent-primary);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .category-tab.active::before {
+            transform: scaleX(1);
+        }
+
+        .tab-icon {
+            width: 60px;
+            height: 60px;
+            background: var(--bg-tertiary);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.5rem;
+            color: var(--accent-primary);
+            transition: all 0.3s ease;
+            flex-shrink: 0;
+        }
+
+        .category-tab:hover .tab-icon {
+            background: var(--accent-primary);
+            color: var(--text-inverse);
+            transform: scale(1.1);
+        }
+
+        .category-tab.active .tab-icon {
+            background: var(--accent-primary);
+            color: var(--text-inverse);
+        }
+
+        .tab-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .tab-name {
+            font-size: 1.125rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 0.25rem;
+        }
+
+        .tab-description {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 0.5rem;
+        }
+
+        .tab-count {
+            background: var(--accent-primary);
+            color: var(--text-inverse);
+            padding: 0.25rem 0.75rem;
+            border-radius: 1rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            align-self: flex-start;
+            min-width: 2rem;
+            text-align: center;
+        }
+
+        /* Category-specific colors */
+        .web-tab::before { background: var(--cat-web); }
+        .web-tab:hover .tab-icon,
+        .web-tab.active .tab-icon { background: var(--cat-web); }
+        .web-tab.active .tab-count { background: var(--cat-web); }
+
+        .crypto-tab::before { background: var(--cat-crypto); }
+        .crypto-tab:hover .tab-icon,
+        .crypto-tab.active .tab-icon { background: var(--cat-crypto); }
+        .crypto-tab.active .tab-count { background: var(--cat-crypto); }
+
+        .pwn-tab::before { background: var(--cat-pwn); }
+        .pwn-tab:hover .tab-icon,
+        .pwn-tab.active .tab-icon { background: var(--cat-pwn); }
+        .pwn-tab.active .tab-count { background: var(--cat-pwn); }
+
+        .reverse-tab::before { background: var(--cat-reverse); }
+        .reverse-tab:hover .tab-icon,
+        .reverse-tab.active .tab-icon { background: var(--cat-reverse); }
+        .reverse-tab.active .tab-count { background: var(--cat-reverse); }
+
+        .forensics-tab::before { background: var(--cat-forensics); }
+        .forensics-tab:hover .tab-icon,
+        .forensics-tab.active .tab-icon { background: var(--cat-forensics); }
+        .forensics-tab.active .tab-count { background: var(--cat-forensics); }
+
+        .misc-tab::before { background: var(--cat-misc); }
+        .misc-tab:hover .tab-icon,
+        .misc-tab.active .tab-icon { background: var(--cat-misc); }
+        .misc-tab.active .tab-count { background: var(--cat-misc); }
+
+        /* Difficulty Tabs */
+        .difficulty-tabs {
+            margin-bottom: 2rem;
+        }
+
+        .difficulty-title {
+            color: var(--text-primary);
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .difficulty-title i {
+            color: var(--accent-secondary);
+        }
+
+        .difficulty-buttons {
+            display: flex;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .difficulty-btn {
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 1rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .difficulty-btn::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 2px;
+            background: var(--accent-success);
+            transform: scaleX(0);
+            transition: transform 0.3s ease;
+        }
+
+        .difficulty-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
             color: var(--text-primary);
         }
 
-        .filter-btn.active {
-            background: var(--accent-primary);
-            border-color: var(--accent-primary);
-            color: white;
+        .difficulty-btn:hover::before {
+            transform: scaleX(1);
+        }
+
+        .difficulty-btn.active {
+            color: var(--text-inverse);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .difficulty-btn.active::before {
+            transform: scaleX(1);
+        }
+
+        .difficulty-count {
+            background: var(--bg-card);
+            color: var(--text-primary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            min-width: 1.5rem;
+            text-align: center;
+        }
+
+        /* Difficulty-specific colors */
+        .easy-btn::before { background: var(--accent-success); }
+        .easy-btn:hover,
+        .easy-btn.active {
+            background: var(--accent-success);
+            border-color: var(--accent-success);
+        }
+
+        .medium-btn::before { background: var(--accent-warning); }
+        .medium-btn:hover,
+        .medium-btn.active {
+            background: var(--accent-warning);
+            border-color: var(--accent-warning);
+        }
+
+        .hard-btn::before { background: var(--accent-danger); }
+        .hard-btn:hover,
+        .hard-btn.active {
+            background: var(--accent-danger);
+            border-color: var(--accent-danger);
+        }
+
+        .expert-btn::before { background: var(--accent-secondary); }
+        .expert-btn:hover,
+        .expert-btn.active {
+            background: var(--accent-secondary);
+            border-color: var(--accent-secondary);
+        }
+
+        /* Filter Actions */
+        .filter-actions {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .clear-filters-btn,
+        .show-all-btn {
+            background: var(--bg-tertiary);
+            border: 2px solid var(--border-color);
+            border-radius: 0.75rem;
+            padding: 0.75rem 1.5rem;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .clear-filters-btn:hover {
+            background: var(--accent-danger);
+            border-color: var(--accent-danger);
+            color: var(--text-inverse);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .show-all-btn:hover {
+            background: var(--accent-info);
+            border-color: var(--accent-info);
+            color: var(--text-inverse);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        /* Responsive Design for Category Tabs */
+        @media (max-width: 768px) {
+            .category-tabs-container {
+                padding: 1.5rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .tabs-title {
+                font-size: 1.25rem;
+                margin-bottom: 1rem;
+            }
+
+            .category-tabs {
+                grid-template-columns: 1fr;
+                gap: 0.75rem;
+                margin-bottom: 1.5rem;
+            }
+
+            .category-tab {
+                padding: 1rem;
+                gap: 0.75rem;
+            }
+
+            .tab-icon {
+                width: 50px;
+                height: 50px;
+                font-size: 1.25rem;
+            }
+
+            .tab-name {
+                font-size: 1rem;
+            }
+
+            .tab-description {
+                font-size: 0.8rem;
+            }
+
+            .difficulty-buttons {
+                justify-content: center;
+            }
+
+            .difficulty-btn {
+                padding: 0.75rem 1rem;
+                font-size: 0.875rem;
+            }
+
+            .filter-actions {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .clear-filters-btn,
+            .show-all-btn {
+                width: 100%;
+                max-width: 200px;
+                justify-content: center;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .category-tabs-container {
+                padding: 1rem;
+            }
+
+            .category-tab {
+                flex-direction: column;
+                text-align: center;
+                padding: 1rem;
+            }
+
+            .tab-content {
+                align-items: center;
+            }
+
+            .tab-count {
+                align-self: center;
+            }
+
+            .difficulty-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .difficulty-btn {
+                width: 100%;
+                max-width: 200px;
+                justify-content: center;
+            }
         }
 
         .clear-filters {
@@ -425,11 +826,13 @@
             display: flex;
             align-items: center;
             justify-content: space-between;
+            gap: 0.75rem;
+            flex-wrap: wrap;
         }
 
         .challenge-action {
             background: var(--accent-primary);
-            color: white;
+            color: var(--text-inverse) !important;
             text-decoration: none;
             padding: 0.75rem 1.5rem;
             border-radius: 0.5rem;
@@ -438,19 +841,37 @@
             display: flex;
             align-items: center;
             gap: 0.5rem;
+            border: 1px solid transparent;
+            box-shadow: var(--shadow-sm);
         }
 
         .challenge-action:hover {
-            background: #2563eb;
-            transform: translateY(-1px);
+            background: var(--accent-primary-hover);
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            color: var(--text-inverse) !important;
         }
 
         .challenge-action.solved {
             background: var(--accent-success);
+            color: var(--text-inverse) !important;
         }
 
         .challenge-action.solved:hover {
-            background: #059669;
+            background: var(--accent-success-hover);
+            color: var(--text-inverse) !important;
+        }
+
+        .challenge-action.answer-btn {
+            background: var(--accent-info);
+            color: var(--text-inverse) !important;
+            font-size: 0.9rem;
+            padding: 0.6rem 1.2rem;
+        }
+
+        .challenge-action.answer-btn:hover {
+            background: var(--accent-info-hover);
+            color: var(--text-inverse) !important;
         }
 
         /* Empty State */
@@ -670,35 +1091,122 @@
                     </div>
                 </div>
 
-                <!-- Quick Filter Buttons -->
-                <div class="filter-buttons">
-                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'web')">
-                        <i class="fas fa-globe"></i> Web
-                    </button>
-                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'crypto')">
-                        <i class="fas fa-lock"></i> Crypto
-                    </button>
-                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'pwn')">
-                        <i class="fas fa-bug"></i> Pwn
-                    </button>
-                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'reverse')">
-                        <i class="fas fa-undo"></i> Reverse
-                    </button>
-                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'forensics')">
-                        <i class="fas fa-search"></i> Forensics
-                    </button>
-                    <button type="button" class="filter-btn" onclick="quickFilter('category', 'misc')">
-                        <i class="fas fa-puzzle-piece"></i> Misc
-                    </button>
-                    <button type="button" class="filter-btn" onclick="quickFilter('difficulty', 'easy')">
-                        <i class="fas fa-star"></i> Easy
-                    </button>
-                    <button type="button" class="filter-btn" onclick="quickFilter('difficulty', 'medium')">
-                        <i class="fas fa-star-half-alt"></i> Medium
-                    </button>
-                    <button type="button" class="filter-btn" onclick="quickFilter('difficulty', 'hard')">
-                        <i class="fas fa-fire"></i> Hard
-                    </button>
+                <!-- Enhanced Category Tabs -->
+                <div class="category-tabs-container">
+                    <h4 class="tabs-title">
+                        <i class="fas fa-layer-group"></i>
+                        Challenge Categories
+                    </h4>
+
+                    <div class="category-tabs">
+                        <button type="button" class="category-tab web-tab" data-category="web" onclick="quickFilter('category', 'web')">
+                            <div class="tab-icon">
+                                <i class="fas fa-globe"></i>
+                            </div>
+                            <div class="tab-content">
+                                <span class="tab-name">Web Security</span>
+                                <span class="tab-description">XSS, SQLi, CSRF</span>
+                                <span class="tab-count" id="web-count">0</span>
+                            </div>
+                        </button>
+
+                        <button type="button" class="category-tab crypto-tab" data-category="crypto" onclick="quickFilter('category', 'crypto')">
+                            <div class="tab-icon">
+                                <i class="fas fa-key"></i>
+                            </div>
+                            <div class="tab-content">
+                                <span class="tab-name">Cryptography</span>
+                                <span class="tab-description">Ciphers, Hashing</span>
+                                <span class="tab-count" id="crypto-count">0</span>
+                            </div>
+                        </button>
+
+                        <button type="button" class="category-tab pwn-tab" data-category="pwn" onclick="quickFilter('category', 'pwn')">
+                            <div class="tab-icon">
+                                <i class="fas fa-bug"></i>
+                            </div>
+                            <div class="tab-content">
+                                <span class="tab-name">Exploitation</span>
+                                <span class="tab-description">Buffer Overflow</span>
+                                <span class="tab-count" id="pwn-count">0</span>
+                            </div>
+                        </button>
+
+                        <button type="button" class="category-tab reverse-tab" data-category="reverse" onclick="quickFilter('category', 'reverse')">
+                            <div class="tab-icon">
+                                <i class="fas fa-cogs"></i>
+                            </div>
+                            <div class="tab-content">
+                                <span class="tab-name">Reverse Eng.</span>
+                                <span class="tab-description">Binary Analysis</span>
+                                <span class="tab-count" id="reverse-count">0</span>
+                            </div>
+                        </button>
+
+                        <button type="button" class="category-tab forensics-tab" data-category="forensics" onclick="quickFilter('category', 'forensics')">
+                            <div class="tab-icon">
+                                <i class="fas fa-search"></i>
+                            </div>
+                            <div class="tab-content">
+                                <span class="tab-name">Forensics</span>
+                                <span class="tab-description">Digital Evidence</span>
+                                <span class="tab-count" id="forensics-count">0</span>
+                            </div>
+                        </button>
+
+                        <button type="button" class="category-tab misc-tab" data-category="misc" onclick="quickFilter('category', 'misc')">
+                            <div class="tab-icon">
+                                <i class="fas fa-puzzle-piece"></i>
+                            </div>
+                            <div class="tab-content">
+                                <span class="tab-name">Miscellaneous</span>
+                                <span class="tab-description">Mixed Challenges</span>
+                                <span class="tab-count" id="misc-count">0</span>
+                            </div>
+                        </button>
+                    </div>
+
+                    <!-- Difficulty Filter Tabs -->
+                    <div class="difficulty-tabs">
+                        <h5 class="difficulty-title">
+                            <i class="fas fa-signal"></i>
+                            Difficulty Levels
+                        </h5>
+                        <div class="difficulty-buttons">
+                            <button type="button" class="difficulty-btn easy-btn" onclick="quickFilter('difficulty', 'easy')">
+                                <i class="fas fa-star"></i>
+                                <span>Easy</span>
+                                <span class="difficulty-count" id="easy-count">0</span>
+                            </button>
+                            <button type="button" class="difficulty-btn medium-btn" onclick="quickFilter('difficulty', 'medium')">
+                                <i class="fas fa-star-half-alt"></i>
+                                <span>Medium</span>
+                                <span class="difficulty-count" id="medium-count">0</span>
+                            </button>
+                            <button type="button" class="difficulty-btn hard-btn" onclick="quickFilter('difficulty', 'hard')">
+                                <i class="fas fa-fire"></i>
+                                <span>Hard</span>
+                                <span class="difficulty-count" id="hard-count">0</span>
+                            </button>
+                            <button type="button" class="difficulty-btn expert-btn" onclick="quickFilter('difficulty', 'expert')">
+                                <i class="fas fa-crown"></i>
+                                <span>Expert</span>
+                                <span class="difficulty-count" id="expert-count">0</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Clear Filters Button -->
+                    <div class="filter-actions">
+                        <button type="button" class="clear-filters-btn" onclick="clearAllFilters()">
+                            <i class="fas fa-times-circle"></i>
+                            Clear All Filters
+                        </button>
+                        <button type="button" class="show-all-btn" onclick="showAllChallenges()">
+                            <i class="fas fa-eye"></i>
+                            Show All Challenges
+                        </button>
+                    </div>
                 </div>
             </form>
         </section>
@@ -752,10 +1260,14 @@
                         <a href="/challenge/{{ challenge.id }}"
                            class="challenge-action {% if challenge.id in solved_ids %}solved{% endif %}">
                             {% if challenge.id in solved_ids %}
-                                <i class="fas fa-check"></i> View Solution
+                                <i class="fas fa-check"></i> View Challenge
                             {% else %}
                                 <i class="fas fa-play"></i> Start Challenge
                             {% endif %}
+                        </a>
+                        <a href="{{ url_for('show_answer', challenge_id=challenge.id) }}"
+                           class="challenge-action answer-btn">
+                            <i class="fas fa-lightbulb"></i> Show Answer
                         </a>
                     </div>
                 </div>
@@ -957,6 +1469,63 @@
 
         // Call progress update
         updateProgress();
+
+        // Enhanced Tab Management
+        function updateChallengeCounts() {
+            const challenges = document.querySelectorAll('.challenge-card');
+            const counts = {
+                web: 0, crypto: 0, pwn: 0, reverse: 0, forensics: 0, misc: 0,
+                easy: 0, medium: 0, hard: 0, expert: 0
+            };
+
+            challenges.forEach(challenge => {
+                const category = challenge.dataset.category;
+                const difficulty = challenge.dataset.difficulty;
+
+                if (counts.hasOwnProperty(category)) {
+                    counts[category]++;
+                }
+                if (counts.hasOwnProperty(difficulty)) {
+                    counts[difficulty]++;
+                }
+            });
+
+            // Update count displays
+            Object.keys(counts).forEach(key => {
+                const countElement = document.getElementById(`${key}-count`);
+                if (countElement) {
+                    countElement.textContent = counts[key];
+                }
+            });
+        }
+
+        function clearAllFilters() {
+            document.querySelectorAll('.category-tab, .difficulty-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+
+            document.querySelectorAll('.challenge-card').forEach(card => {
+                card.style.display = 'block';
+                card.style.opacity = '1';
+                card.style.transform = 'translateY(0)';
+            });
+
+            const url = new URL(window.location);
+            url.searchParams.delete('category');
+            url.searchParams.delete('difficulty');
+            window.history.pushState({}, '', url);
+
+            updateChallengeCounts();
+        }
+
+        function showAllChallenges() {
+            clearAllFilters();
+        }
+
+        // Initialize enhanced features
+        setTimeout(() => {
+            updateChallengeCounts();
+        }, 500);
     </script>
 </body>
 </html>

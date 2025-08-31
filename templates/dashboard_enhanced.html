@@ -347,7 +347,7 @@
           
           {% if challenge.id not in solved_ids %}
           <div class="challenge-actions">
-            <a href="{{ url_for('challenge_enhanced', challenge_id=challenge.id) }}" class="action-btn primary">
+            <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="action-btn primary">
               <i class="fas fa-play"></i>
               Solve Challenge
             </a>
@@ -360,7 +360,7 @@
           {% endif %}
           
           <div class="challenge-actions">
-            <a href="{{ url_for('challenge_enhanced', challenge_id=challenge.id) }}" class="action-btn">
+            <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="action-btn">
               <i class="fas fa-eye"></i> View Challenge
             </a>
           </div>

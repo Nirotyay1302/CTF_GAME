@@ -5,6 +5,45 @@
 {% block content %}
 <!-- Hero Section -->
 <div class="hero-section fade-in">
+    {% if current_user %}
+    <!-- Personalized Welcome for Logged-in Users -->
+    <div class="row align-items-center justify-content-center mb-4">
+        <div class="col-auto">
+            {% if current_user.profile_picture %}
+                <img src="{{ url_for('profile_picture', filename=current_user.profile_picture) }}"
+                     alt="Profile Picture"
+                     class="rounded-circle border border-primary"
+                     style="width: 100px; height: 100px; object-fit: cover;"
+                     onerror="this.onerror=null; this.src='{{ url_for('static', filename='images/default-avatar.svg') }}';">
+            {% else %}
+                <img src="{{ url_for('static', filename='images/default-avatar.svg') }}"
+                     alt="Default Avatar"
+                     class="rounded-circle border border-primary"
+                     style="width: 100px; height: 100px; object-fit: cover;">
+            {% endif %}
+        </div>
+        <div class="col-auto text-start">
+            <h1 class="display-4 fw-bold mb-2">
+                Welcome back, {{ current_user.username }}!
+            </h1>
+            {% if current_user.first_name or current_user.last_name %}
+            <p class="lead text-muted mb-0">{{ current_user.first_name }} {{ current_user.last_name }}</p>
+            {% endif %}
+        </div>
+    </div>
+    <p class="lead mb-4">
+        Ready to continue your cybersecurity journey? Check out new challenges or view your progress.
+    </p>
+    <div class="d-flex gap-3 justify-content-center flex-wrap">
+        <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">
+            <i class="fas fa-tachometer-alt"></i> Dashboard
+        </a>
+        <a href="{{ url_for('challenges') }}" class="btn btn-outline-primary btn-lg">
+            <i class="fas fa-puzzle-piece"></i> Challenges
+        </a>
+    </div>
+    {% else %}
+    <!-- Welcome for New Users -->
     <h1 class="display-4 fw-bold mb-4">
         <i class="fas fa-flag text-primary"></i> Welcome to HUNTING-CTF
     </h1>
@@ -12,22 +51,12 @@
         Test your cybersecurity skills with our challenging Capture The Flag platform.
         Solve puzzles, learn new techniques, and compete with fellow hackers.
     </p>
-    {% if not current_user %}
     <div class="d-flex gap-3 justify-content-center flex-wrap">
         <a href="{{ url_for('register') }}" class="btn btn-primary btn-lg">
             <i class="fas fa-user-plus"></i> Get Started
         </a>
         <a href="{{ url_for('login') }}" class="btn btn-outline-primary btn-lg">
             <i class="fas fa-sign-in-alt"></i> Login
-        </a>
-    </div>
-    {% else %}
-    <div class="d-flex gap-3 justify-content-center flex-wrap">
-        <a href="{{ url_for('dashboard') }}" class="btn btn-primary btn-lg">
-            <i class="fas fa-tachometer-alt"></i> Dashboard
-        </a>
-        <a href="{{ url_for('challenges') }}" class="btn btn-outline-primary btn-lg">
-            <i class="fas fa-puzzle-piece"></i> Challenges
         </a>
     </div>
     {% endif %}

@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <script src="{{ url_for('static', filename='theme.js') }}"></script>
+</script>
     <style>
         body {
             background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('{{ url_for("static", filename="cyber_bg1.jpg") }}') no-repeat center center fixed;
@@ -135,13 +135,7 @@
         .silver { background: linear-gradient(45deg, #c0c0c0, #e5e5e5); }
         .bronze { background: linear-gradient(45deg, #cd7f32, #daa520); }
         
-        /* Theme toggle positioning */
-        .theme-toggle-container {
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1000;
-        }
+
         
         @media (max-width: 768px) {
             .container { margin: 10px; }
@@ -153,12 +147,7 @@
     </style>
 </head>
 <body>
-    <!-- Theme Toggle -->
-    <div class="theme-toggle-container">
-        <button class="theme-toggle" aria-label="Toggle theme">
-            <i class="fas fa-moon"></i>
-        </button>
-    </div>
+
 
     <div class="container">
         <div class="header">

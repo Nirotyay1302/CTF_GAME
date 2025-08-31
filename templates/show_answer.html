@@ -1,17 +1,185 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Show Answer - {{ challenge.title }}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
-</head>
-<body>
-    <div class="container">
-        <h2>Answer for: {{ challenge.title }}</h2>
-        <p><strong>Correct Flag:</strong> <span class="text-success">{{ answer }}</span></p>
-        <a class="button" href="{{ url_for('dashboard') }}">Back to Dashboard</a>
+{% extends "base.html" %}
+
+{% block title %}Answer - {{ challenge.title }} - HUNTING-CTF{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb">
+                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('challenges') }}">Challenges</a></li>
+                <li class="breadcrumb-item"><a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}">{{ challenge.title }}</a></li>
+                <li class="breadcrumb-item active">Answer</li>
+            </ol>
+        </nav>
     </div>
-  {% include '_contact_footer.html' %}
-</body>
-</html>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header {% if solve %}bg-success{% else %}bg-info{% endif %} text-white">
+                <h4 class="mb-0">
+                    {% if solve %}
+                    <i class="fas fa-trophy"></i> {{ challenge.title }} - Solution
+                    {% else %}
+                    <i class="fas fa-book"></i> {{ challenge.title }} - Educational Content
+                    {% endif %}
+                </h4>
+            </div>
+            <div class="card-body">
+                <!-- Challenge Info -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <span class="badge bg-secondary me-2">
+                            <i class="fas fa-tag"></i> {{ challenge.category|title }}
+                        </span>
+                        <span class="badge 
+                            {% if challenge.difficulty == 'easy' %}bg-success
+                            {% elif challenge.difficulty == 'medium' %}bg-warning
+                            {% elif challenge.difficulty == 'hard' %}bg-danger
+                            {% else %}bg-dark{% endif %}">
+                            <i class="fas fa-signal"></i> {{ challenge.difficulty|title }}
+                        </span>
+                        <span class="badge bg-primary">{{ challenge.points }} points</span>
+                    </div>
+                    <div class="col-md-6 text-md-end">
+                        {% if solve %}
+                        <small class="text-success">
+                            <i class="fas fa-trophy"></i> Solved on {{ solve.solved_at.strftime('%B %d, %Y at %I:%M %p') }}
+                        </small>
+                        {% else %}
+                        <small class="text-muted">
+                            <i class="fas fa-book"></i> Educational Content - Challenge not yet solved
+                        </small>
+                        {% endif %}
+                    </div>
+                </div>
+
+                <!-- Status Message -->
+                {% if not solve %}
+                <div class="alert alert-info">
+                    <h5><i class="fas fa-info-circle"></i> Educational Access</h5>
+                    <p class="mb-0">You're viewing the answer and explanation for learning purposes. Try solving the challenge yourself first for the best learning experience!</p>
+                </div>
+                {% endif %}
+
+                <!-- Flag Answer -->
+                <div class="alert alert-success">
+                    <h5><i class="fas fa-flag"></i> Correct Flag</h5>
+                    <div class="input-group">
+                        <input type="text" class="form-control" value="{{ actual_flag }}" readonly id="flagAnswer">
+                        <button class="btn btn-outline-secondary" type="button" onclick="copyFlag()">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Answer Explanation -->
+                {% if challenge.answer_explanation %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-lightbulb"></i> Explanation</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="answer-explanation">
+                            {{ challenge.answer_explanation|nl2br|safe }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Solution Steps -->
+                {% if challenge.solution_steps %}
+                <div class="card mb-4">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-list-ol"></i> Solution Steps</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="solution-steps">
+                            {{ challenge.solution_steps|nl2br|safe }}
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+
+                <!-- Challenge Description Reminder -->
+                <div class="card">
+                    <div class="card-header">
+                        <h5 class="mb-0"><i class="fas fa-info-circle"></i> Challenge Description</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="challenge-description">
+                            {{ challenge.description|nl2br|safe }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer">
+                <div class="d-flex justify-content-between">
+                    <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-secondary">
+                        <i class="fas fa-arrow-left"></i> Back to Challenge
+                    </a>
+                    <div>
+                        {% if not solve %}
+                        <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-primary me-2">
+                            <i class="fas fa-play"></i> Try Solving It
+                        </a>
+                        {% endif %}
+                        <a href="{{ url_for('challenges') }}" class="btn btn-outline-primary">
+                            <i class="fas fa-puzzle-piece"></i> More Challenges
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function copyFlag() {
+    const flagInput = document.getElementById('flagAnswer');
+    flagInput.select();
+    flagInput.setSelectionRange(0, 99999); // For mobile devices
+    
+    try {
+        document.execCommand('copy');
+        
+        // Change button text temporarily
+        const copyBtn = event.target.closest('button');
+        const originalHTML = copyBtn.innerHTML;
+        copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+        copyBtn.classList.remove('btn-outline-secondary');
+        copyBtn.classList.add('btn-success');
+        
+        setTimeout(() => {
+            copyBtn.innerHTML = originalHTML;
+            copyBtn.classList.remove('btn-success');
+            copyBtn.classList.add('btn-outline-secondary');
+        }, 2000);
+        
+        // Show success message
+        const alertDiv = document.createElement('div');
+        alertDiv.className = 'alert alert-success alert-dismissible fade show mt-2';
+        alertDiv.innerHTML = `
+            <i class="fas fa-check-circle"></i> Flag copied to clipboard!
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        `;
+        flagInput.parentNode.parentNode.appendChild(alertDiv);
+        
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => {
+            if (alertDiv.parentNode) {
+                alertDiv.remove();
+            }
+        }, 3000);
+        
+    } catch (err) {
+        alert('Failed to copy flag. Please copy manually: ' + flagInput.value);
+    }
+}
+</script>
+{% endblock %}
