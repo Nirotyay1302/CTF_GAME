@@ -1,842 +1,193 @@
-{% extends "base.html" %}
-
-{% block title %}Chat - HUNTING-CTF{% endblock %}
-
-{% block extra_css %}
-<style>
-    :root {
-        --chat-primary: #3b82f6;
-        --chat-secondary: #1e40af;
-        --chat-success: #10b981;
-        --chat-warning: #f59e0b;
-        --chat-danger: #ef4444;
-        --chat-bg: #f8fafc;
-        --chat-card: #ffffff;
-        --chat-border: #e5e7eb;
-        --chat-text: #374151;
-        --chat-text-light: #6b7280;
-        --chat-text-muted: #9ca3af;
-        --chat-sidebar: #1f2937;
-        --chat-sidebar-hover: #374151;
-        --chat-message-bg: #f3f4f6;
-        --chat-message-own: #dbeafe;
-        --chat-message-system: #fef3c7;
-    }
-
-    .chat-container {
-        height: calc(100vh - 120px);
-        display: flex;
-        background: var(--chat-bg);
-        border-radius: 12px;
-        overflow: hidden;
-        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.1);
-        border: 1px solid var(--chat-border);
-    }
-
-    .chat-sidebar {
-        width: 280px;
-        background: var(--chat-sidebar);
-        color: white;
-        display: flex;
-        flex-direction: column;
-        border-right: 1px solid var(--chat-border);
-    }
-
-    .chat-sidebar-header {
-        padding: 1.5rem;
-        border-bottom: 1px solid var(--chat-sidebar-hover);
-        background: linear-gradient(135deg, var(--chat-primary), var(--chat-secondary));
-    }
-
-    .chat-sidebar-title {
-        font-size: 1.25rem;
-        font-weight: 700;
-        margin-bottom: 0.5rem;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
-
-    .chat-sidebar-subtitle {
-        font-size: 0.875rem;
-        opacity: 0.8;
-    }
-
-    .chat-rooms {
-        flex: 1;
-        padding: 1rem 0;
-        overflow-y: auto;
-    }
-
-    .chat-room-section {
-        margin-bottom: 1.5rem;
-    }
-
-    .chat-room-section-title {
-        padding: 0 1.5rem 0.5rem;
-        font-size: 0.75rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-        color: #9ca3af;
-    }
-
-    .chat-room {
-        display: flex;
-        align-items: center;
-        padding: 0.75rem 1.5rem;
-        color: #cbd5e1;
-        text-decoration: none;
-        transition: all 0.3s ease;
-        cursor: pointer;
-        border: none;
-        background: none;
-        width: 100%;
-        text-align: left;
-        position: relative;
-    }
-
-    .chat-room:hover {
-        background: var(--chat-sidebar-hover);
-        color: white;
-        transform: translateX(5px);
-    }
-
-    .chat-room.active {
-        background: var(--chat-primary);
-        color: white;
-    }
-
-    .chat-room.active::before {
-        content: '';
-        position: absolute;
-        left: 0;
-        top: 0;
-        bottom: 0;
-        width: 4px;
-        background: white;
-    }
-
-    .chat-room-icon {
-        width: 20px;
-        margin-right: 0.75rem;
-        font-size: 1rem;
-    }
-
-    .chat-room-name {
-        flex: 1;
-        font-weight: 500;
-    }
-
-    .chat-room-badge {
-        background: var(--chat-danger);
-        color: white;
-        padding: 0.2rem 0.5rem;
-        border-radius: 10px;
-        font-size: 0.7rem;
-        font-weight: 600;
-        margin-left: auto;
-    }
-
-    .chat-main {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        background: var(--chat-card);
-    }
-
-    .chat-header {
-        padding: 1rem 1.5rem;
-        border-bottom: 1px solid var(--chat-border);
-        background: var(--chat-card);
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-    }
-
-    .chat-header-info {
-        display: flex;
-        align-items: center;
-        gap: 1rem;
-    }
-
-    .chat-header-icon {
-        width: 40px;
-        height: 40px;
-        border-radius: 10px;
-        background: linear-gradient(135deg, var(--chat-primary), var(--chat-secondary));
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-size: 1.2rem;
-    }
-
-    .chat-header-details h3 {
-        margin: 0;
-        font-size: 1.1rem;
-        font-weight: 600;
-        color: var(--chat-text);
-    }
-
-    .chat-header-details p {
-        margin: 0;
-        font-size: 0.875rem;
-        color: var(--chat-text-light);
-    }
-
-    .chat-actions {
-        display: flex;
-        gap: 0.5rem;
-    }
-
-    .chat-action-btn {
-        padding: 0.5rem;
-        border: 1px solid var(--chat-border);
-        background: var(--chat-card);
-        border-radius: 8px;
-        color: var(--chat-text-light);
-        cursor: pointer;
-        transition: all 0.3s ease;
-    }
-
-    .chat-action-btn:hover {
-        background: var(--chat-bg);
-        color: var(--chat-primary);
-        border-color: var(--chat-primary);
-    }
-
-    .chat-messages {
-        flex: 1;
-        padding: 1rem;
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 1rem;
-        background: var(--chat-bg);
-    }
-
-    .chat-messages::-webkit-scrollbar {
-        width: 6px;
-    }
-
-    .chat-messages::-webkit-scrollbar-track {
-        background: var(--chat-bg);
-    }
-
-    .chat-messages::-webkit-scrollbar-thumb {
-        background: var(--chat-border);
-        border-radius: 3px;
-    }
-
-    .chat-message {
-        display: flex;
-        gap: 0.75rem;
-        animation: messageSlideIn 0.3s ease-out;
-    }
-
-    @keyframes messageSlideIn {
-        from {
-            opacity: 0;
-            transform: translateY(10px);
-        }
-        to {
-            opacity: 1;
-            transform: translateY(0);
-        }
-    }
-
-    .chat-message.own {
-        flex-direction: row-reverse;
-    }
-
-    .chat-message.system {
-        justify-content: center;
-    }
-
-    .chat-message.system .message-content {
-        background: var(--chat-message-system);
-        color: #92400e;
-        font-style: italic;
-        text-align: center;
-        border-radius: 20px;
-        padding: 0.5rem 1rem;
-        font-size: 0.875rem;
-    }
-
-    .message-avatar {
-        width: 40px;
-        height: 40px;
-        border-radius: 50%;
-        background: linear-gradient(135deg, var(--chat-primary), var(--chat-secondary));
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        color: white;
-        font-weight: 600;
-        font-size: 0.875rem;
-        flex-shrink: 0;
-    }
-
-    .message-content {
-        flex: 1;
-        max-width: 70%;
-    }
-
-    .message-header {
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-        margin-bottom: 0.25rem;
-    }
-
-    .message-username {
-        font-weight: 600;
-        color: var(--chat-text);
-        font-size: 0.875rem;
-    }
-
-    .message-time {
-        font-size: 0.75rem;
-        color: var(--chat-text-muted);
-    }
-
-    .message-edited {
-        font-size: 0.7rem;
-        color: var(--chat-text-muted);
-        font-style: italic;
-    }
-
-    .message-body {
-        background: var(--chat-message-bg);
-        padding: 0.75rem 1rem;
-        border-radius: 12px;
-        color: var(--chat-text);
-        line-height: 1.5;
-        word-wrap: break-word;
-        position: relative;
-    }
-
-    .chat-message.own .message-body {
-        background: var(--chat-message-own);
-        color: var(--chat-text);
-    }
-
-    .message-actions {
-        position: absolute;
-        top: -10px;
-        right: 10px;
-        display: none;
-        gap: 0.25rem;
-    }
-
-    .message-body:hover .message-actions {
-        display: flex;
-    }
-
-    .message-action {
-        background: var(--chat-card);
-        border: 1px solid var(--chat-border);
-        border-radius: 4px;
-        padding: 0.25rem;
-        cursor: pointer;
-        font-size: 0.75rem;
-        color: var(--chat-text-light);
-        transition: all 0.2s ease;
-    }
-
-    .message-action:hover {
-        background: var(--chat-primary);
-        color: white;
-        border-color: var(--chat-primary);
-    }
-
-    .reply-indicator {
-        background: var(--chat-border);
-        padding: 0.5rem;
-        border-radius: 8px;
-        margin-bottom: 0.5rem;
-        font-size: 0.8rem;
-        color: var(--chat-text-light);
-        border-left: 3px solid var(--chat-primary);
-    }
-
-    .chat-input-container {
-        padding: 1rem 1.5rem;
-        border-top: 1px solid var(--chat-border);
-        background: var(--chat-card);
-    }
-
-    .chat-input-wrapper {
-        display: flex;
-        gap: 0.75rem;
-        align-items: flex-end;
-    }
-
-    .chat-input {
-        flex: 1;
-        min-height: 40px;
-        max-height: 120px;
-        padding: 0.75rem 1rem;
-        border: 1px solid var(--chat-border);
-        border-radius: 20px;
-        resize: none;
-        font-family: inherit;
-        font-size: 0.875rem;
-        line-height: 1.5;
-        background: var(--chat-bg);
-        transition: all 0.3s ease;
-    }
-
-    .chat-input:focus {
-        outline: none;
-        border-color: var(--chat-primary);
-        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
-        background: var(--chat-card);
-    }
-
-    .chat-send-btn {
-        width: 40px;
-        height: 40px;
-        border: none;
-        border-radius: 50%;
-        background: linear-gradient(135deg, var(--chat-primary), var(--chat-secondary));
-        color: white;
-        cursor: pointer;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: all 0.3s ease;
-        font-size: 1rem;
-    }
-
-    .chat-send-btn:hover {
-        transform: scale(1.05);
-        box-shadow: 0 4px 12px rgba(59, 130, 246, 0.4);
-    }
-
-    .chat-send-btn:disabled {
-        background: var(--chat-text-muted);
-        cursor: not-allowed;
-        transform: none;
-        box-shadow: none;
-    }
-
-    .empty-chat {
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-        height: 100%;
-        color: var(--chat-text-light);
-        text-align: center;
-    }
-
-    .empty-chat-icon {
-        font-size: 4rem;
-        margin-bottom: 1rem;
-        opacity: 0.5;
-    }
-
-    .empty-chat h3 {
-        margin-bottom: 0.5rem;
-        color: var(--chat-text);
-    }
-
-    .empty-chat p {
-        margin: 0;
-        font-size: 0.875rem;
-    }
-
-    /* Responsive Design */
-    @media (max-width: 768px) {
-        .chat-container {
-            height: calc(100vh - 80px);
-            flex-direction: column;
-        }
-
-        .chat-sidebar {
-            width: 100%;
-            height: auto;
-            max-height: 200px;
-            order: 2;
-        }
-
-        .chat-main {
-            order: 1;
-            height: calc(100vh - 280px);
-        }
-
-        .message-content {
-            max-width: 85%;
-        }
-
-        .chat-rooms {
-            display: flex;
-            overflow-x: auto;
-            padding: 1rem;
-        }
-
-        .chat-room-section {
-            display: flex;
-            gap: 0.5rem;
-            margin: 0;
-            white-space: nowrap;
-        }
-
-        .chat-room {
-            padding: 0.5rem 1rem;
-            border-radius: 20px;
-            white-space: nowrap;
-        }
-    }
-</style>
-{% endblock %}
-
-{% block content %}
-<div class="container-fluid px-3">
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>HUNTING-CTF Chat - Real-time Team Communication</title>
+    <meta name="description" content="Professional chat interface for CTF teams. Connect, collaborate, and conquer challenges together with real-time messaging and file sharing." />
+    <meta name="author" content="HUNTING-CTF Team" />
+
+    <meta property="og:title" content="HUNTING-CTF Chat - Team Communication Platform" />
+    <meta property="og:description" content="Professional chat interface for CTF teams with real-time messaging, emoji support, and file sharing capabilities." />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@lovable_dev" />
+    <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}">
+  </head>
+
+  <body>
     <div class="chat-container">
-        <!-- Chat Sidebar -->
-        <div class="chat-sidebar">
-            <div class="chat-sidebar-header">
-                <div class="chat-sidebar-title">
-                    <i class="fas fa-comments"></i>
-                    Chat Rooms
-                </div>
-                <div class="chat-sidebar-subtitle">Connect with other players</div>
-            </div>
+      <!-- Sidebar / Room List -->
+      <aside class="sidebar">
+        <div class="sidebar-header">
+          <h3>HUNTING-CTF Chat</h3>
+        </div>
+        <div class="room-list" id="room-switcher">
+          <!-- Room items will be dynamically loaded here by chat.js -->
+        </div>
+        <div class="sidebar-footer">
+          <button id="notifications-btn" class="icon-btn" title="Notifications"><i class="fas fa-bell"></i></button>
+          <button id="settings-btn" class="icon-btn" title="Settings"><i class="fas fa-cog"></i></button>
+        </div>
+      </aside>
 
-            <div class="chat-rooms">
-                <!-- General Chat -->
-                <div class="chat-room-section">
-                    <div class="chat-room-section-title">General</div>
-                    <button class="chat-room active" data-room="general">
-                        <i class="fas fa-globe chat-room-icon"></i>
-                        <span class="chat-room-name">General Chat</span>
-                        <span class="chat-room-badge" id="general-badge" style="display: none;">0</span>
-                    </button>
-                </div>
-
-                <!-- Team Chat -->
-                {% if user_team %}
-                <div class="chat-room-section">
-                    <div class="chat-room-section-title">Team</div>
-                    <button class="chat-room" data-room="team-{{ user_team.id }}">
-                        <i class="fas fa-shield-alt chat-room-icon"></i>
-                        <span class="chat-room-name">{{ user_team.name }}</span>
-                        <span class="chat-room-badge" id="team-badge" style="display: none;">0</span>
-                    </button>
-                </div>
-                {% else %}
-                <div class="chat-room-section">
-                    <div class="chat-room-section-title">Team</div>
-                    <div style="padding: 0 1.5rem; color: #9ca3af; font-size: 0.875rem;">
-                        <i class="fas fa-info-circle"></i> Join a team to access team chat
-                    </div>
-                </div>
-                {% endif %}
+      <!-- Main Chat Area -->
+      <main class="chat-main">
+        <!-- Chat Header -->
+        <header class="chat-header">
+          <div class="chat-info">
+            <span class="chat-icon" id="current-room-icon">🌍</span>
+            <div>
+              <h3 id="chat-title">General Chat</h3>
+              <p id="chat-subtitle">Public discussion for all players</p>
             </div>
+          </div>
+          <div class="chat-actions">
+            <button id="add-friend-btn" class="action-btn" title="Add Friend"><i class="fas fa-user-plus"></i></button>
+            <button id="return-to-game-btn" class="action-btn" title="Return to Game"><i class="fas fa-gamepad"></i></button>
+            <button id="emoji-toggle" class="action-btn" title="Emoji"><i class="far fa-smile"></i></button>
+            <button id="attachment-toggle" class="action-btn" title="Attach File"><i class="fas fa-paperclip"></i></button>
+          </div>
+        </header>
+
+        <!-- Messages Area -->
+        <div class="messages-area">
+          <div class="messages-container" id="messages-container">
+            <!-- Messages will be dynamically loaded here by chat.js -->
+          </div>
+          <div class="loading-messages hidden" id="loading-indicator">
+            <div class="loading-spinner"></div>
+            <p>Loading messages...</p>
+          </div>
+          <div class="no-messages hidden" id="no-messages">
+            <div class="no-messages-icon">💬</div>
+            <h3>No messages yet</h3>
+            <p>Start the conversation!</p>
+          </div>
         </div>
 
-        <!-- Chat Main Area -->
-        <div class="chat-main">
-            <!-- Chat Header -->
-            <div class="chat-header">
-                <div class="chat-header-info">
-                    <div class="chat-header-icon" id="chat-icon">
-                        <i class="fas fa-globe"></i>
+        <!-- Message Input Area -->
+        <footer class="message-input-area">
+          <div class="input-container">
+            <div class="input-actions">
+              <button id="attachment-btn" class="icon-btn" title="Attach"><i class="fas fa-paperclip"></i></button>
+              <button id="emoji-btn" class="icon-btn" title="Emoji"><i class="far fa-smile"></i></button>
+            </div>
+            <div class="message-input-wrapper">
+              <textarea id="message-input" placeholder="Type your message..." rows="1"></textarea>
+              <div class="input-footer">
+                <span class="char-count" id="char-count">0/1000</span>
+              </div>
+            </div>
+            <button id="send-button" class="icon-btn send-btn" title="Send"><i class="fas fa-paper-plane"></i></button>
+          </div>
+          
+          <!-- Hidden file input for attachments -->
+          <input type="file" id="file-input" class="hidden" />
+
+          <!-- Emoji Picker -->
+          <div id="emoji-picker" class="emoji-picker hidden">
+            <div class="emoji-grid">
+              <span class="emoji" data-emoji="😊">😊</span>
+              <span class="emoji" data-emoji="😂">😂</span>
+              <span class="emoji" data-emoji="❤️">❤️</span>
+              <span class="emoji" data-emoji="👍">👍</span>
+              <span class="emoji" data-emoji="🎉">🎉</span>
+              <span class="emoji" data-emoji="🔥">🔥</span>
+              <span class="emoji" data-emoji="💯">💯</span>
+              <span class="emoji" data-emoji="👏">👏</span>
+              <span class="emoji" data-emoji="🤔">🤔</span>
+              <span class="emoji" data-emoji="😎">😎</span>
+              <span class="emoji" data-emoji="🚀">🚀</span>
+              <span class="emoji" data-emoji="💪">💪</span>
+              <span class="emoji" data-emoji="🎯">🎯</span>
+              <span class="emoji" data-emoji="⚡">⚡</span>
+              <span class="emoji" data-emoji="💡">💡</span>
+              <span class="emoji" data-emoji="🏆">🏆</span>
+              <span class="emoji" data-emoji="🔒">🔒</span>
+              <span class="emoji" data-emoji="🌟">🌟</span>
+            </div>
+          </div>
+
+          <!-- Attachment Menu -->
+          <div id="attachment-menu" class="attachment-menu hidden">
+            <div class="attachment-option" data-accept="image/*">
+              <i class="fas fa-image attachment-icon"></i>
+              <span>Photo</span>
+            </div>
+            <div class="attachment-option" data-accept=".pdf,.doc,.docx,.txt">
+              <i class="fas fa-file-alt attachment-icon"></i>
+              <span>Document</span>
+            </div>
+            <div class="attachment-option" data-accept="video/*">
+              <i class="fas fa-video attachment-icon"></i>
+              <span>Video</span>
+            </div>
+          </div>
+        </footer>
+      </main>
+    </div>
+    <div id="toast-container"></div>
+
+    <!-- Notifications Panel -->
+    <div id="notifications-panel" class="side-panel hidden" style="transform: translateX(100%);">
+        <div class="panel-header">
+            <h3>Notifications</h3>
+            <button class="close-panel-btn" aria-label="Close notifications panel">&times;</button>
+        </div>
+        <div class="panel-content">
+            <div class="panel-section">
+                <h4>Friend Requests</h4>
+                <div id="friend-requests-container" class="friend-requests-list">
+                    <!-- Friend requests will be loaded here -->
+                    <div class="empty-state">
+                        <i class="fas fa-user-friends"></i>
+                        <p class="no-items-message">No pending friend requests</p>
                     </div>
-                    <div class="chat-header-details">
-                        <h3 id="chat-title">General Chat</h3>
-                        <p id="chat-description">Public discussion for all players</p>
-                    </div>
-                </div>
-                <div class="chat-actions">
-                    <button class="chat-action-btn" onclick="clearChat()" title="Clear Chat">
-                        <i class="fas fa-broom"></i>
-                    </button>
-                    <button class="chat-action-btn" onclick="toggleNotifications()" title="Toggle Notifications">
-                        <i class="fas fa-bell" id="notification-icon"></i>
-                    </button>
                 </div>
             </div>
-
-            <!-- Chat Messages -->
-            <div class="chat-messages" id="chat-messages">
-                <div class="empty-chat">
-                    <div class="empty-chat-icon">
-                        <i class="fas fa-comments"></i>
+            <div class="panel-section">
+                <h4>Recent Notifications</h4>
+                <div id="notifications-container" class="notifications-list">
+                    <!-- Notifications will be loaded here -->
+                    <div class="empty-state">
+                        <i class="fas fa-bell-slash"></i>
+                        <p class="no-items-message">No notifications</p>
                     </div>
-                    <h3>Welcome to Chat!</h3>
-                    <p>Start a conversation with other players</p>
-                </div>
-            </div>
-
-            <!-- Chat Input -->
-            <div class="chat-input-container">
-                <div class="chat-input-wrapper">
-                    <textarea
-                        class="chat-input"
-                        id="chat-input"
-                        placeholder="Type your message..."
-                        rows="1"
-                        maxlength="1000"></textarea>
-                    <button class="chat-send-btn" id="send-btn" onclick="sendMessage()">
-                        <i class="fas fa-paper-plane"></i>
-                    </button>
                 </div>
             </div>
         </div>
     </div>
-</div>
 
-<script>
-// Chat JavaScript
-let currentRoom = 'general';
-let currentUser = {{ current_user.id }};
-let currentUsername = '{{ current_user.username }}';
-let messages = [];
-let lastMessageId = 0;
-
-// Initialize chat
-document.addEventListener('DOMContentLoaded', function() {
-    loadMessages();
-    setupEventListeners();
-    setInterval(loadMessages, 3000); // Poll for new messages every 3 seconds
-});
-
-function setupEventListeners() {
-    // Room switching
-    document.querySelectorAll('.chat-room').forEach(room => {
-        room.addEventListener('click', function() {
-            switchRoom(this.dataset.room);
-        });
-    });
-
-    // Send message on Enter
-    document.getElementById('chat-input').addEventListener('keypress', function(e) {
-        if (e.key === 'Enter' && !e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
-    });
-
-    // Auto-resize textarea
-    document.getElementById('chat-input').addEventListener('input', function() {
-        this.style.height = 'auto';
-        this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-    });
-}
-
-function switchRoom(room) {
-    currentRoom = room;
-
-    // Update active room
-    document.querySelectorAll('.chat-room').forEach(r => r.classList.remove('active'));
-    document.querySelector(`[data-room="${room}"]`).classList.add('active');
-
-    // Update header
-    const icon = document.getElementById('chat-icon');
-    const title = document.getElementById('chat-title');
-    const description = document.getElementById('chat-description');
-
-    if (room === 'general') {
-        icon.innerHTML = '<i class="fas fa-globe"></i>';
-        title.textContent = 'General Chat';
-        description.textContent = 'Public discussion for all players';
-    } else if (room.startsWith('team-')) {
-        icon.innerHTML = '<i class="fas fa-shield-alt"></i>';
-        title.textContent = 'Team Chat';
-        description.textContent = 'Private discussion for team members';
-    }
-
-    // Clear and reload messages
-    messages = [];
-    lastMessageId = 0;
-    loadMessages();
-}
-
-async function loadMessages() {
-    try {
-        const response = await fetch(`/api/chat/messages?room=${currentRoom}&limit=50`);
-        const newMessages = await response.json();
-
-        if (newMessages.length > 0) {
-            const latestId = Math.max(...newMessages.map(m => m.id));
-            if (latestId > lastMessageId) {
-                messages = newMessages;
-                lastMessageId = latestId;
-                renderMessages();
-            }
-        }
-    } catch (error) {
-        console.error('Error loading messages:', error);
-    }
-}
-
-function renderMessages() {
-    const container = document.getElementById('chat-messages');
-
-    if (messages.length === 0) {
-        container.innerHTML = `
-            <div class="empty-chat">
-                <div class="empty-chat-icon">
-                    <i class="fas fa-comments"></i>
-                </div>
-                <h3>No messages yet</h3>
-                <p>Be the first to start the conversation!</p>
-            </div>
-        `;
-        return;
-    }
-
-    container.innerHTML = messages.map(message => {
-        const isOwn = message.user_id === currentUser;
-        const messageClass = isOwn ? 'chat-message own' : 'chat-message';
-
-        return `
-            <div class="${messageClass}" data-message-id="${message.id}">
-                <div class="message-avatar">
-                    ${message.username[0].toUpperCase()}
-                </div>
-                <div class="message-content">
-                    <div class="message-header">
-                        <span class="message-username">${message.username}</span>
-                        <span class="message-time">${message.timestamp}</span>
-                        ${message.edited ? '<span class="message-edited">(edited)</span>' : ''}
-                    </div>
-                    <div class="message-body">
-                        ${escapeHtml(message.content)}
-                        ${isOwn ? `
-                            <div class="message-actions">
-                                <button class="message-action" onclick="editMessage(${message.id})" title="Edit">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <button class="message-action" onclick="deleteMessage(${message.id})" title="Delete">
-                                    <i class="fas fa-trash"></i>
-                                </button>
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-            </div>
-        `;
-    }).join('');
-
-    // Scroll to bottom
-    container.scrollTop = container.scrollHeight;
-}
-
-async function sendMessage() {
-    const input = document.getElementById('chat-input');
-    const content = input.value.trim();
-
-    if (!content) return;
-
-    try {
-        const response = await fetch('/api/chat/send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                content: content,
-                room: currentRoom
-            })
-        });
-
-        if (response.ok) {
-            input.value = '';
-            input.style.height = 'auto';
-            loadMessages(); // Reload messages to show the new one
-        } else {
-            const error = await response.json();
-            alert('Error sending message: ' + error.error);
-        }
-    } catch (error) {
-        console.error('Error sending message:', error);
-        alert('Error sending message. Please try again.');
-    }
-}
-
-async function editMessage(messageId) {
-    const message = messages.find(m => m.id === messageId);
-    if (!message) return;
-
-    const newContent = prompt('Edit message:', message.content);
-    if (!newContent || newContent === message.content) return;
-
-    try {
-        const response = await fetch(`/api/chat/edit/${messageId}`, {
-            method: 'PUT',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                content: newContent
-            })
-        });
-
-        if (response.ok) {
-            loadMessages();
-        } else {
-            const error = await response.json();
-            alert('Error editing message: ' + error.error);
-        }
-    } catch (error) {
-        console.error('Error editing message:', error);
-        alert('Error editing message. Please try again.');
-    }
-}
-
-async function deleteMessage(messageId) {
-    if (!confirm('Are you sure you want to delete this message?')) return;
-
-    try {
-        const response = await fetch(`/api/chat/delete/${messageId}`, {
-            method: 'DELETE'
-        });
-
-        if (response.ok) {
-            loadMessages();
-        } else {
-            const error = await response.json();
-            alert('Error deleting message: ' + error.error);
-        }
-    } catch (error) {
-        console.error('Error deleting message:', error);
-        alert('Error deleting message. Please try again.');
-    }
-}
-
-function clearChat() {
-    document.getElementById('chat-messages').innerHTML = `
-        <div class="empty-chat">
-            <div class="empty-chat-icon">
-                <i class="fas fa-comments"></i>
-            </div>
-            <h3>Chat cleared</h3>
-            <p>Messages will reload automatically</p>
+    <!-- Settings Panel Removed -->
         </div>
-    `;
-    setTimeout(loadMessages, 1000);
-}
+    </div>
 
-function toggleNotifications() {
-    const icon = document.getElementById('notification-icon');
-    if (icon.classList.contains('fa-bell')) {
-        icon.classList.remove('fa-bell');
-        icon.classList.add('fa-bell-slash');
-    } else {
-        icon.classList.remove('fa-bell-slash');
-        icon.classList.add('fa-bell');
-    }
-}
+    <!-- Add Friend Modal -->
+    <div id="add-friend-modal" class="modal hidden">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Add Friend</h2>
+                <button class="close-button">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="search-input-wrapper">
+                    <input type="text" id="friend-search-input" placeholder="Search for users..." />
+                    <button id="friend-search-btn" class="icon-btn"><i class="fas fa-search"></i></button>
+                </div>
+                <div class="search-results" id="friend-search-results">
+                    <!-- Search results will be dynamically loaded here -->
+                    <p class="no-results">Search for users by username or email.</p>
+                </div>
+            </div>
+        </div>
+    </div>
 
-function escapeHtml(text) {
-    const div = document.createElement('div');
-    div.textContent = text;
-    return div.innerHTML;
-}
-</script>
-{% endblock %}
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js"></script>
+    <script type="module" src="{{ url_for('static', filename='chat.js') }}"></script>
+  </body>
+</html>

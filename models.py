@@ -1,6 +1,7 @@
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 from sqlalchemy.sql import func
+from flask import url_for # Added for url_for
 
 db = SQLAlchemy()
 
@@ -22,6 +23,10 @@ class User(db.Model):
     country = db.Column(db.String(100), nullable=True)
     timezone = db.Column(db.String(50), nullable=True)
     
+    # Online status tracking
+    is_online = db.Column(db.Boolean, default=False)
+    last_seen = db.Column(db.DateTime, default=datetime.utcnow)
+    
     # Timestamps
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime)
@@ -35,6 +40,10 @@ class User(db.Model):
     chat_messages = db.relationship('ChatMessage', back_populates='user', lazy=True)
     hints_purchased = db.relationship('UserHint', back_populates='user', lazy=True)
     progress_records = db.relationship('UserProgress', back_populates='user', lazy=True)
+    
+    # Friend relationships
+    friends_sent = db.relationship('Friend', foreign_keys='Friend.user_id', back_populates='user', lazy=True)
+    friends_received = db.relationship('Friend', foreign_keys='Friend.friend_id', back_populates='friend', lazy=True)
 
     # Streak tracking
     last_solve_date = db.Column(db.Date, nullable=True)
@@ -53,6 +62,36 @@ class User(db.Model):
         if self.first_name and self.last_name:
             return f"{self.first_name} {self.last_name}"
         return self.username
+    
+    def get_friends(self):
+        """Get all confirmed friends"""
+        friends = []
+        # Friends where this user sent the request and it was accepted
+        sent_friends = Friend.query.filter_by(user_id=self.id, status='accepted').all()
+        for f in sent_friends:
+            friends.append(f.friend)
+        
+        # Friends where this user received the request and it was accepted
+        received_friends = Friend.query.filter_by(friend_id=self.id, status='accepted').all()
+        for f in received_friends:
+            friends.append(f.user)
+        
+        return friends
+    
+    def get_friend_requests(self):
+        """Get pending friend requests received by this user"""
+        return Friend.query.filter_by(friend_id=self.id, status='pending').all()
+    
+    def get_sent_friend_requests(self):
+        """Get pending friend requests sent by this user"""
+        return Friend.query.filter_by(user_id=self.id, status='pending').all()
+
+    def get_full_profile_picture_url(self):
+        if self.profile_picture:
+            # Assuming profile pictures are served from /profile_picture/<filename>
+            # Or, if they are in static/uploads, use url_for('static', filename=f'uploads/{self.profile_picture}')
+            return url_for('profile_picture', filename=self.profile_picture) # Use the dedicated route
+        return url_for('static', filename='images/default-avatar.svg')
 
 class Challenge(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -197,9 +236,9 @@ class ChatMessage(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    room = db.Column(db.String(50), default='general')  # general, team-{team_id}, admin
+    room = db.Column(db.String(100), default='general')  # general, team-{team_id}, admin
     team_id = db.Column(db.Integer, db.ForeignKey('team.id'), nullable=True)  # For team-specific messages
-    message_type = db.Column(db.String(20), default='text')  # text, system, announcement
+    message_type = db.Column(db.String(20), default='text')  # text, system, file
     edited = db.Column(db.Boolean, default=False)
     edited_at = db.Column(db.DateTime, nullable=True)
     reply_to_id = db.Column(db.Integer, db.ForeignKey('chat_message.id'), nullable=True)  # For replies
@@ -209,12 +248,16 @@ class ChatMessage(db.Model):
     team = db.relationship('Team', backref='chat_messages')
     reply_to = db.relationship('ChatMessage', remote_side=[id], backref='replies')
 
+    def __repr__(self):
+        return f'<ChatMessage {self.id} by {self.user.username}>'
+
     def to_dict(self):
-        return {
+        """Convert message to dictionary with user profile picture and full file URL if applicable"""
+        message_data = {
             'id': self.id,
             'user_id': self.user_id,
-            'username': self.user.username if self.user else 'Unknown',
-            'user_avatar': self.user.profile_picture if self.user and self.user.profile_picture else None,
+            'username': self.user.username,
+            'user_avatar': self.user.get_full_profile_picture_url(), # Use the new method
             'content': self.content,
             'room': self.room,
             'team_id': self.team_id,
@@ -222,11 +265,16 @@ class ChatMessage(db.Model):
             'edited': self.edited,
             'edited_at': self.edited_at.isoformat() if self.edited_at else None,
             'reply_to_id': self.reply_to_id,
-            'reply_to': self.reply_to.to_dict() if self.reply_to else None,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'timestamp': self.created_at.strftime('%H:%M') if self.created_at else None,
-            'date': self.created_at.strftime('%Y-%m-%d') if self.created_at else None
+            'created_at': self.created_at.isoformat() if self.created_at else None
         }
+
+        # Extract file_url if message type is file
+        if self.message_type == 'file':
+            import re
+            file_url_match = re.search(r'\(http[^)]+\)', self.content)
+            if file_url_match:
+                message_data['file_url'] = file_url_match.group(0).strip('()')
+        return message_data
 
 # Dynamic challenge generation
 class ChallengeTemplate(db.Model):
@@ -324,7 +372,20 @@ class Hint(db.Model):
     display_order = db.Column(db.Integer, nullable=False, default=0)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-
-# UserHint and Notification are already defined above
+# Friend system
+class Friend(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    friend_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    status = db.Column(db.String(20), default='pending')  # pending, accepted, rejected
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    accepted_at = db.Column(db.DateTime, nullable=True)
+    
+    # Relationships
+    user = db.relationship('User', foreign_keys=[user_id], back_populates='friends_sent')
+    friend = db.relationship('User', foreign_keys=[friend_id], back_populates='friends_received')
+    
+    def __repr__(self):
+        return f'<Friend {self.user.username} -> {self.friend.username} ({self.status})>'
 
 

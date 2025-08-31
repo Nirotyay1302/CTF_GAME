@@ -3,284 +3,1010 @@
 {% block title %}{{ challenge.title }} - HUNTING-CTF{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <nav aria-label="breadcrumb">
-            <ol class="breadcrumb">
-                <li class="breadcrumb-item"><a href="{{ url_for('index') }}">Home</a></li>
-                <li class="breadcrumb-item"><a href="{{ url_for('challenges') }}">Challenges</a></li>
-                <li class="breadcrumb-item active">{{ challenge.title }}</li>
-            </ol>
-        </nav>
-    </div>
-</div>
+<div class="container-fluid px-4 py-4">
+    <div class="row">
+        <!-- Challenge Content -->
+        <div class="col-lg-8">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">
+                            <i class="fas fa-flag me-2"></i>
+                            {{ challenge.title }}
+                        </h4>
+                        <div class="challenge-meta">
+                            <span class="badge bg-light text-dark me-2">
+                                <i class="fas fa-star me-1"></i>{{ challenge.points }} pts
+                            </span>
+                            <span class="badge bg-{{ 'success' if solve else 'secondary' }}">
+                                <i class="fas fa-{{ 'check' if solve else 'lock' }} me-1"></i>
+                                {{ 'Solved' if solve else 'Unsolved' }}
+                            </span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="challenge-description mb-4">
+                        <h5>Description</h5>
+                        <p>{{ challenge.description }}</p>
+                    </div>
 
-<div class="row">
-    <!-- Challenge Details -->
-    <div class="col-lg-8 mb-4">
-        <div class="card">
-            <div class="card-header">
-                <div class="d-flex justify-content-between align-items-center">
-                    <h4 class="mb-0">
-                        {% if solve %}
-                        <i class="fas fa-check-circle text-success"></i>
-                        {% else %}
-                        <i class="fas fa-lock text-muted"></i>
-                        {% endif %}
-                        {{ challenge.title }}
-                    </h4>
-                    <span class="badge bg-primary fs-6">{{ challenge.points }} points</span>
-                </div>
-            </div>
-            <div class="card-body">
-                <!-- Challenge Info -->
-                <div class="row mb-4">
-                    <div class="col-md-6">
-                        <span class="badge bg-secondary me-2">
-                            <i class="fas fa-tag"></i> {{ challenge.category|title }}
-                        </span>
-                        <span class="badge 
-                            {% if challenge.difficulty == 'easy' %}bg-success
-                            {% elif challenge.difficulty == 'medium' %}bg-warning
-                            {% elif challenge.difficulty == 'hard' %}bg-danger
-                            {% else %}bg-dark{% endif %}">
-                            <i class="fas fa-signal"></i> {{ challenge.difficulty|title }}
-                        </span>
+                    {% if challenge.attachment %}
+                    <div class="challenge-attachment mb-4">
+                        <h5>Attachment</h5>
+                        <a href="{{ url_for('download_attachment', filename=challenge.attachment) }}" 
+                           class="btn btn-outline-primary">
+                            <i class="fas fa-download me-2"></i>Download Attachment
+                        </a>
                     </div>
-                    <div class="col-md-6 text-md-end">
-                        <small class="text-muted">
-                            <i class="fas fa-calendar"></i> Created {{ challenge.created_at.strftime('%B %d, %Y') }}
-                        </small>
-                    </div>
-                </div>
-                
-                <!-- Challenge Description -->
-                <div class="mb-4">
-                    <h5>Description</h5>
-                    <div class="challenge-description">
-                        {{ challenge.description|nl2br }}
-                    </div>
-                </div>
-                
-                <!-- Solve Status -->
-                {% if solve %}
-                <div class="alert alert-success">
-                    <h5><i class="fas fa-trophy"></i> Challenge Solved!</h5>
-                    <p class="mb-1">Congratulations! You solved this challenge on {{ solve.solved_at.strftime('%B %d, %Y at %I:%M %p') }}.</p>
-                    <p class="mb-0">You earned <strong>{{ challenge.points }} points</strong> for this solve.</p>
-                </div>
-                {% endif %}
-
-                <!-- Show Answer Button - Always Available -->
-                <div class="mb-4">
-                    <a href="{{ url_for('show_answer', challenge_id=challenge.id) }}" class="btn btn-info">
-                        <i class="fas fa-lightbulb"></i> View Answer & Explanation
-                    </a>
-                    {% if not solve %}
-                    <small class="text-muted d-block mt-2">
-                        <i class="fas fa-info-circle"></i> You can view the answer and explanation anytime for learning purposes.
-                    </small>
                     {% endif %}
-                </div>
 
-                {% if not solve %}
-                <!-- Flag Submission Form -->
-                <div class="card bg-dark">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-flag"></i> Submit Flag</h5>
-                    </div>
-                    <div class="card-body">
-                        <form id="flagForm">
-                            <input type="hidden" name="challenge_id" value="{{ challenge.id }}">
-                            <div class="input-group mb-3">
-                                <input type="text" class="form-control" name="flag" placeholder="CTF{your_flag_here}" required>
-                                <button type="submit" class="btn btn-success">
-                                    <i class="fas fa-paper-plane"></i> Submit
+                    <!-- Flag Submission -->
+                    <div class="flag-submission">
+                        <h5>Submit Flag</h5>
+                        <form id="flagForm" class="mb-3">
+                            <div class="input-group">
+                                <input type="text" class="form-control" id="flagInput" 
+                                       placeholder="Enter flag (format: flag{...})" required>
+                                <button class="btn btn-primary" type="submit">
+                                    <i class="fas fa-paper-plane me-2"></i>Submit
                                 </button>
                             </div>
                         </form>
-                        <div id="flagResult"></div>
                     </div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-    
-    <!-- Sidebar -->
-    <div class="col-lg-4">
-        <!-- Challenge Stats -->
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-chart-bar"></i> Challenge Stats</h5>
-            </div>
-            <div class="card-body">
-                <div class="row text-center">
-                    <div class="col-6">
-                        <h4 class="text-primary">{{ challenge.points }}</h4>
-                        <small class="text-muted">Points</small>
+
+                    <!-- Hints -->
+                    {% if hints %}
+                    <div class="hints-section mb-4">
+                        <h5>Hints</h5>
+                        <div class="hints-list">
+                            {% for hint in hints %}
+                            <div class="hint-item mb-2">
+                                {% if hint.id in revealed_hints %}
+                                <div class="hint-content">
+                                    <i class="fas fa-lightbulb text-warning me-2"></i>
+                                    <span>{{ hint.content }}</span>
+                                </div>
+                                {% else %}
+                                <div class="hint-locked">
+                                    <i class="fas fa-lock text-muted me-2"></i>
+                                    <span class="text-muted">Hint {{ hint.display_order }}</span>
+                                    <button class="btn btn-sm btn-outline-warning ms-2" 
+                                            onclick="purchaseHint({{ hint.id }})">
+                                        <i class="fas fa-unlock me-1"></i>Reveal ({{ hint.cost }} pts)
+                                    </button>
+                                </div>
+                                {% endif %}
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
-                    <div class="col-6">
-                        <h4 class="text-success">0</h4>
-                        <small class="text-muted">Solves</small>
-                    </div>
-                </div>
-            </div>
-        </div>
-        
-        <!-- Hints -->
-        {% if hints %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-lightbulb"></i> Hints</h5>
-            </div>
-            <div class="card-body">
-                {% for hint in hints %}
-                <div class="hint-item mb-3" id="hint-{{ hint.id }}">
-                    {% if hint.id in revealed_hints %}
-                    <div class="alert alert-info">
-                        <strong>Hint {{ loop.index }}:</strong><br>
-                        {{ hint.content }}
-                    </div>
-                    {% else %}
-                    <div class="d-flex justify-content-between align-items-center">
-                        <span><strong>Hint {{ loop.index }}</strong></span>
-                        <button class="btn btn-sm btn-outline-primary" onclick="purchaseHint({{ hint.id }}, {{ hint.cost }})">
-                            <i class="fas fa-coins"></i> Reveal ({{ hint.cost }} pts)
-                        </button>
+                    {% endif %}
+
+                    <!-- Recent Submissions -->
+                    {% if recent_submissions %}
+                    <div class="submissions-section">
+                        <h5>Recent Submissions</h5>
+                        <div class="submissions-list">
+                            {% for submission in recent_submissions %}
+                            <div class="submission-item mb-2">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <span class="submission-flag">{{ submission.flag[:10] }}...</span>
+                                    <span class="badge bg-{{ 'success' if submission.is_correct else 'danger' }}">
+                                        {{ 'Correct' if submission.is_correct else 'Incorrect' }}
+                                    </span>
+                                    <small class="text-muted">{{ submission.submitted_at.strftime('%H:%M') }}</small>
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
                     </div>
                     {% endif %}
                 </div>
-                {% endfor %}
             </div>
         </div>
-        {% endif %}
-        
-        <!-- Recent Submissions -->
-        {% if recent_submissions %}
-        <div class="card mb-4">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-history"></i> Your Submissions</h5>
-            </div>
-            <div class="card-body">
-                {% for submission in recent_submissions %}
-                <div class="d-flex justify-content-between align-items-center mb-2">
-                    <small class="text-muted">{{ submission.submitted_at.strftime('%H:%M:%S') }}</small>
-                    {% if submission.is_correct %}
-                    <span class="badge bg-success">Correct</span>
-                    {% else %}
-                    <span class="badge bg-danger">Incorrect</span>
-                    {% endif %}
+
+        <!-- Chat Sidebar -->
+        <div class="col-lg-4">
+            <div class="card shadow-sm">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-comments me-2"></i>
+                        Challenge Chat
+                    </h5>
                 </div>
-                {% endfor %}
-            </div>
-        </div>
-        {% endif %}
-        
-        <!-- Actions -->
-        <div class="card">
-            <div class="card-header">
-                <h5 class="mb-0"><i class="fas fa-tools"></i> Actions</h5>
-            </div>
-            <div class="card-body">
-                <div class="d-grid gap-2">
-                    <a href="{{ url_for('challenges') }}" class="btn btn-outline-primary">
-                        <i class="fas fa-arrow-left"></i> Back to Challenges
-                    </a>
-                    {% if current_user.role == 'admin' %}
-                    <a href="{{ url_for('admin_challenges') }}" class="btn btn-outline-warning">
-                        <i class="fas fa-edit"></i> Edit Challenge
-                    </a>
-                    {% endif %}
+                <div class="card-body p-0">
+                    <div class="chat-container-challenge">
+                        <!-- Chat Tabs -->
+                        <div class="chat-tabs-challenge">
+                            <button class="tab-btn-challenge active" data-tab="general">
+                                <i class="fas fa-globe"></i> General
+                            </button>
+                            {% if user_team %}
+                            <button class="tab-btn-challenge" data-tab="team">
+                                <i class="fas fa-users"></i> Team
+                            </button>
+                            {% endif %}
+                            <button class="tab-btn-challenge" data-tab="friends">
+                                <i class="fas fa-user-friends"></i> Friends
+                            </button>
+                        </div>
+
+                        <!-- Chat Rooms -->
+                        <div class="chat-rooms-challenge">
+                            <!-- General Chat -->
+                            <div class="chat-room-challenge active" id="general-chat-challenge">
+                                <div class="messages-container-challenge" id="general-messages-challenge"></div>
+                                <div class="message-input-challenge">
+                                    <input type="text" id="general-input-challenge" placeholder="Type your message...">
+                                    <button id="general-send-challenge"><i class="fas fa-paper-plane"></i></button>
+                                </div>
+                            </div>
+
+                            <!-- Team Chat -->
+                            {% if user_team %}
+                            <div class="chat-room-challenge" id="team-chat-challenge">
+                                <div class="messages-container-challenge" id="team-messages-challenge"></div>
+                                <div class="message-input-challenge">
+                                    <input type="text" id="team-input-challenge" placeholder="Type your message...">
+                                    <button id="team-send-challenge"><i class="fas fa-paper-plane"></i></button>
+                                </div>
+                            </div>
+                            {% endif %}
+
+                            <!-- Friends Chat -->
+                            <div class="chat-room-challenge" id="friends-chat-challenge">
+                                <div class="friends-list-challenge">
+                                    {% for friend in friends %}
+                                    <div class="friend-item-challenge" onclick="openPrivateChatChallenge({{ friend.id }}, '{{ friend.username }}')">
+                                        <div class="friend-pic-challenge">
+                                            {% if friend.profile_picture %}
+                                                <img src="{{ url_for('profile_picture', filename=friend.profile_picture) }}" alt="{{ friend.username }}">
+                                            {% else %}
+                                                <img src="{{ url_for('static', filename='images/default-avatar.svg') }}" alt="{{ friend.username }}">
+                                            {% endif %}
+                                            <span class="online-status-challenge {% if friend.is_online %}online{% else %}offline{% endif %}"></span>
+                                        </div>
+                                        <div class="friend-info-challenge">
+                                            <h6>{{ friend.username }}</h6>
+                                            <small class="status">
+                                                {% if friend.is_online %}
+                                                    Online
+                                                {% else %}
+                                                    Offline
+                                                {% endif %}
+                                            </small>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                    
+                                    {% if not friends %}
+                                    <div class="no-friends-challenge">
+                                        <i class="fas fa-user-plus"></i>
+                                        <p>No friends yet</p>
+                                        <a href="/friends" class="btn btn-sm btn-primary">Add Friends</a>
+                                    </div>
+                                    {% endif %}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+<!-- Private Chat Windows -->
+<div class="private-chats-challenge" id="private-chats-challenge"></div>
 {% endblock %}
 
-{% block extra_js %}
+{% block extra_css %}
+<style>
+.challenge-meta .badge {
+    font-size: 0.875rem;
+}
+
+.hint-item {
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    padding: 1rem;
+    background: #f8f9fa;
+}
+
+.hint-content {
+    color: #495057;
+}
+
+.hint-locked {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.submission-item {
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    padding: 0.75rem;
+    background: white;
+}
+
+.submission-flag {
+    font-family: monospace;
+    color: #6c757d;
+}
+
+/* Challenge Chat Styles */
+.chat-container-challenge {
+    height: 500px;
+    display: flex;
+    flex-direction: column;
+    background: #f8f9fa;
+}
+
+.chat-tabs-challenge {
+    display: flex;
+    border-bottom: 1px solid #dee2e6;
+    background: white;
+}
+
+.tab-btn-challenge {
+    flex: 1;
+    padding: 0.75rem;
+    background: none;
+    border: none;
+    color: #6c757d;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-size: 0.875rem;
+    font-weight: 500;
+}
+
+.tab-btn-challenge:hover {
+    background: #e9ecef;
+    color: #495057;
+}
+
+.tab-btn-challenge.active {
+    background: #007bff;
+    color: white;
+}
+
+.tab-btn-challenge i {
+    margin-right: 0.5rem;
+}
+
+.chat-rooms-challenge {
+    flex: 1;
+    overflow: hidden;
+}
+
+.chat-room-challenge {
+    display: none;
+    flex-direction: column;
+    height: 100%;
+}
+
+.chat-room-challenge.active {
+    display: flex;
+}
+
+.messages-container-challenge {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    background: white;
+}
+
+.message-input-challenge {
+    padding: 0.75rem;
+    border-top: 1px solid #dee2e6;
+    background: white;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.message-input-challenge input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 20px;
+    font-size: 0.875rem;
+}
+
+.message-input-challenge input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.message-input-challenge button {
+    background: #007bff;
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.message-input-challenge button:hover {
+    background: #0056b3;
+    transform: scale(1.05);
+}
+
+.friends-list-challenge {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+}
+
+.friend-item-challenge {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin-bottom: 0.5rem;
+}
+
+.friend-item-challenge:hover {
+    background: #e9ecef;
+}
+
+.friend-pic-challenge {
+    position: relative;
+    width: 40px;
+    height: 40px;
+}
+
+.friend-pic-challenge img {
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.online-status-challenge {
+    position: absolute;
+    bottom: 2px;
+    right: 2px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+.online-status-challenge.online {
+    background: #28a745;
+}
+
+.online-status-challenge.offline {
+    background: #6c757d;
+}
+
+.friend-info-challenge h6 {
+    margin: 0;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: #495057;
+}
+
+.friend-info-challenge .status {
+    color: #6c757d;
+    font-size: 0.75rem;
+}
+
+.no-friends-challenge {
+    text-align: center;
+    padding: 2rem;
+    color: #6c757d;
+}
+
+.no-friends-challenge i {
+    font-size: 2rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.no-friends-challenge p {
+    margin-bottom: 1rem;
+    font-size: 0.875rem;
+}
+
+/* Message Styles */
+.message-challenge {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.75rem;
+    animation: messageSlideIn 0.3s ease-out;
+}
+
+@keyframes messageSlideIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.message-challenge.own-message {
+    flex-direction: row-reverse;
+}
+
+.message-avatar-challenge {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+.message-avatar-challenge img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.message-content-challenge {
+    flex: 1;
+    max-width: 80%;
+}
+
+.message-header-challenge {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.25rem;
+}
+
+.message-username-challenge {
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.75rem;
+}
+
+.message-time-challenge {
+    font-size: 0.625rem;
+    color: #6c757d;
+}
+
+.message-text-challenge {
+    background: #e9ecef;
+    padding: 0.5rem 0.75rem;
+    border-radius: 12px;
+    color: #495057;
+    line-height: 1.4;
+    word-wrap: break-word;
+    font-size: 0.875rem;
+}
+
+.own-message .message-text-challenge {
+    background: #007bff;
+    color: white;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+    .chat-container-challenge {
+        height: 400px;
+    }
+    
+    .tab-btn-challenge {
+        font-size: 0.75rem;
+        padding: 0.5rem;
+    }
+    
+    .tab-btn-challenge i {
+        margin-right: 0.25rem;
+    }
+}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js"></script>
 <script>
+let socket;
+let currentRoom = 'general';
+let currentPrivateChat = null;
+
+// Initialize Socket.IO
+document.addEventListener('DOMContentLoaded', function() {
+    socket = io();
+    
+    socket.on('connect', function() {
+        console.log('Connected to chat server');
+        joinRoom('general');
+    });
+    
+    socket.on('new_message', function(data) {
+        addMessage(data);
+    });
+    
+    // Load initial messages
+    loadMessages('general');
+    
+    // Setup event listeners
+    setupChatEventListeners();
+});
+
+function setupChatEventListeners() {
+    // Tab switching
+    document.querySelectorAll('.tab-btn-challenge').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const tab = this.dataset.tab;
+            switchTab(tab);
+        });
+    });
+    
+    // Message sending
+    document.getElementById('general-send-challenge').addEventListener('click', function() {
+        sendMessage('general');
+    });
+    
+    document.getElementById('general-input-challenge').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendMessage('general');
+        }
+    });
+    
+    {% if user_team %}
+    document.getElementById('team-send-challenge').addEventListener('click', function() {
+        sendMessage('team');
+    });
+    
+    document.getElementById('team-input-challenge').addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendMessage('team');
+        }
+    });
+    {% endif %}
+}
+
+function switchTab(tab) {
+    // Update active tab
+    document.querySelectorAll('.tab-btn-challenge').forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`[data-tab="${tab}"]`).classList.add('active');
+    
+    // Update active room
+    document.querySelectorAll('.chat-room-challenge').forEach(room => room.classList.remove('active'));
+    document.getElementById(`${tab}-chat-challenge`).classList.add('active');
+    
+    // Update current room
+    if (tab === 'general') {
+        currentRoom = 'general';
+        loadMessages('general');
+    } else if (tab === 'team') {
+        currentRoom = 'team-{{ user_team.id if user_team else "" }}';
+        loadMessages(currentRoom);
+    } else if (tab === 'friends') {
+        // Friends tab doesn't have a main chat area
+        return;
+    }
+    
+    joinRoom(currentRoom);
+}
+
+function joinRoom(room) {
+    if (socket) {
+        socket.emit('join_chat', { room: room });
+    }
+}
+
+function loadMessages(room) {
+    fetch(`/api/chat/messages?room=${room}&limit=30`)
+        .then(response => response.json())
+        .then(messages => {
+            const messagesContainer = document.getElementById(`${room.split('-')[0]}-messages-challenge`);
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '';
+                messages.forEach(message => addMessage(message));
+                scrollToBottom(messagesContainer);
+            }
+        })
+        .catch(error => console.error('Error loading messages:', error));
+}
+
+function addMessage(message) {
+    const room = message.room || currentRoom;
+    const roomType = room.split('-')[0];
+    const messagesContainer = document.getElementById(`${roomType}-messages-challenge`);
+    
+    if (!messagesContainer) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message-challenge';
+    
+    const isOwnMessage = message.user_id === {{ current_user.id }};
+    messageDiv.classList.add(isOwnMessage ? 'own-message' : 'other-message');
+    
+    const profilePic = message.user_avatar || '/static/images/default-avatar.svg';
+    
+    messageDiv.innerHTML = `
+        <div class="message-avatar-challenge">
+            <img src="${profilePic}" alt="${message.username}">
+        </div>
+        <div class="message-content-challenge">
+            <div class="message-header-challenge">
+                <span class="message-username-challenge">${message.username}</span>
+                <span class="message-time-challenge">${formatTime(message.created_at)}</span>
+            </div>
+            <div class="message-text-challenge">${message.content}</div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    scrollToBottom(messagesContainer);
+}
+
+function sendMessage(roomType) {
+    const input = document.getElementById(`${roomType}-input-challenge`);
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    const room = roomType === 'team' ? 'team-{{ user_team.id if user_team else "" }}' : roomType;
+    
+    const data = {
+        content: message,
+        room: room
+    };
+    
+    fetch('/api/chat/send', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.error) {
+            console.error('Error sending message:', result.error);
+        } else {
+            input.value = '';
+            // Message will be added via socket.io
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function openPrivateChatChallenge(friendId, friendName) {
+    const room = `private-${friendId}`;
+    currentRoom = room;
+    currentPrivateChat = friendId;
+    
+    // Create or show private chat window
+    let privateChatWindow = document.getElementById(`private-chat-${friendId}`);
+    if (!privateChatWindow) {
+        createPrivateChatWindow(friendId, friendName);
+    } else {
+        privateChatWindow.style.display = 'block';
+    }
+    
+    // Load messages
+    loadPrivateMessages(room, friendId);
+    joinRoom(room);
+}
+
+function createPrivateChatWindow(friendId, friendName) {
+    const privateChatsContainer = document.getElementById('private-chats-challenge');
+    
+    const chatWindow = document.createElement('div');
+    chatWindow.id = `private-chat-${friendId}`;
+    chatWindow.className = 'private-chat-window';
+    chatWindow.innerHTML = `
+        <div class="private-chat-header">
+            <h6>Chat with ${friendName}</h6>
+            <button class="close-chat-btn" onclick="closePrivateChat(${friendId})">&times;</button>
+        </div>
+        <div class="private-messages" id="private-messages-${friendId}"></div>
+        <div class="private-input">
+            <input type="text" id="private-input-${friendId}" placeholder="Type your message...">
+            <button onclick="sendPrivateMessage(${friendId})"><i class="fas fa-paper-plane"></i></button>
+        </div>
+    `;
+    
+    privateChatsContainer.appendChild(chatWindow);
+    
+    // Setup input event listener
+    document.getElementById(`private-input-${friendId}`).addEventListener('keypress', function(e) {
+        if (e.key === 'Enter') {
+            sendPrivateMessage(friendId);
+        }
+    });
+}
+
+function loadPrivateMessages(room, friendId) {
+    fetch(`/api/chat/messages?room=${room}&limit=30`)
+        .then(response => response.json())
+        .then(messages => {
+            const messagesContainer = document.getElementById(`private-messages-${friendId}`);
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '';
+                messages.forEach(message => addPrivateMessage(message, friendId));
+                scrollToBottom(messagesContainer);
+            }
+        })
+        .catch(error => console.error('Error loading private messages:', error));
+}
+
+function addPrivateMessage(message, friendId) {
+    const messagesContainer = document.getElementById(`private-messages-${friendId}`);
+    if (!messagesContainer) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'message-challenge';
+    
+    const isOwnMessage = message.user_id === {{ current_user.id }};
+    messageDiv.classList.add(isOwnMessage ? 'own-message' : 'other-message');
+    
+    const profilePic = message.user_avatar || '/static/images/default-avatar.svg';
+    
+    messageDiv.innerHTML = `
+        <div class="message-avatar-challenge">
+            <img src="${profilePic}" alt="${message.username}">
+        </div>
+        <div class="message-content-challenge">
+            <div class="message-header-challenge">
+                <span class="message-username-challenge">${message.username}</span>
+                <span class="message-time-challenge">${formatTime(message.created_at)}</span>
+            </div>
+            <div class="message-text-challenge">${message.content}</div>
+        </div>
+    `;
+    
+    messagesContainer.appendChild(messageDiv);
+    scrollToBottom(messagesContainer);
+}
+
+function sendPrivateMessage(friendId) {
+    const input = document.getElementById(`private-input-${friendId}`);
+    const message = input.value.trim();
+    
+    if (!message) return;
+    
+    const room = `private-${friendId}`;
+    
+    const data = {
+        content: message,
+        room: room
+    };
+    
+    fetch('/api/chat/send', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(result => {
+        if (result.error) {
+            console.error('Error sending message:', result.error);
+        } else {
+            input.value = '';
+            // Message will be added via socket.io
+        }
+    })
+    .catch(error => console.error('Error:', error));
+}
+
+function closePrivateChat(friendId) {
+    const chatWindow = document.getElementById(`private-chat-${friendId}`);
+    if (chatWindow) {
+        chatWindow.style.display = 'none';
+    }
+}
+
+function formatTime(timestamp) {
+    const date = new Date(timestamp);
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function scrollToBottom(container) {
+    container.scrollTop = container.scrollHeight;
+}
+
+// Flag submission
 document.getElementById('flagForm').addEventListener('submit', function(e) {
     e.preventDefault();
     
-    const formData = new FormData(this);
-    const submitBtn = this.querySelector('button[type="submit"]');
-    const resultDiv = document.getElementById('flagResult');
+    const flag = document.getElementById('flagInput').value.trim();
+    if (!flag) return;
     
-    // Show loading state
-    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Checking...';
-    submitBtn.disabled = true;
-    
-    fetch('{{ url_for("submit_flag") }}', {
+    fetch('/submit_flag', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            challenge_id: {{ challenge.id }},
+            flag: flag
+        })
     })
     .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            resultDiv.innerHTML = `
-                <div class="alert alert-success">
-                    <i class="fas fa-check-circle"></i> ${data.message}
-                </div>
-            `;
-            // Reload page after 2 seconds to show solved state
-            setTimeout(() => location.reload(), 2000);
+    .then(result => {
+        if (result.success) {
+            showAlert('success', 'Flag submitted successfully!');
+            document.getElementById('flagInput').value = '';
+            // Reload page to update solve status
+            setTimeout(() => location.reload(), 1500);
         } else {
-            resultDiv.innerHTML = `
-                <div class="alert alert-danger">
-                    <i class="fas fa-times-circle"></i> ${data.message}
-                </div>
-            `;
+            showAlert('danger', result.message || 'Incorrect flag');
         }
     })
     .catch(error => {
-        resultDiv.innerHTML = `
-            <div class="alert alert-danger">
-                <i class="fas fa-exclamation-triangle"></i> An error occurred. Please try again.
-            </div>
-        `;
-    })
-    .finally(() => {
-        submitBtn.innerHTML = '<i class="fas fa-paper-plane"></i> Submit';
-        submitBtn.disabled = false;
+        console.error('Error:', error);
+        showAlert('danger', 'Error submitting flag');
     });
 });
 
-function purchaseHint(hintId, cost) {
-    if (!confirm(`Purchase this hint for ${cost} points?`)) {
+function purchaseHint(hintId) {
+    if (!confirm('Are you sure you want to purchase this hint?')) {
         return;
     }
-
-    const formData = new FormData();
-    formData.append('hint_id', hintId);
-
-    fetch('{{ url_for("purchase_hint") }}', {
+    
+    fetch('/purchase_hint', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            hint_id: hintId
+        })
     })
     .then(response => response.json())
-    .then(data => {
-        if (data.success) {
-            // Replace the hint button with the hint content
-            const hintElement = document.getElementById(`hint-${hintId}`);
-            hintElement.innerHTML = `
-                <div class="alert alert-info">
-                    <strong>Hint:</strong><br>
-                    ${data.hint_content}
-                </div>
-            `;
-
-            // Show success message
-            alert(`${data.message}\nRemaining points: ${data.remaining_points}`);
+    .then(result => {
+        if (result.success) {
+            showAlert('success', 'Hint purchased successfully!');
+            // Reload page to show hint
+            setTimeout(() => location.reload(), 1500);
         } else {
-            alert(`Error: ${data.message}`);
+            showAlert('danger', result.message || 'Error purchasing hint');
         }
     })
     .catch(error => {
-        alert('An error occurred while purchasing the hint. Please try again.');
         console.error('Error:', error);
+        showAlert('danger', 'Error purchasing hint');
     });
 }
+
+function showAlert(type, message) {
+    const alertDiv = document.createElement('div');
+    alertDiv.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
+    alertDiv.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alertDiv.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(alertDiv);
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+        if (alertDiv.parentNode) {
+            alertDiv.remove();
+        }
+    }, 5000);
+}
 </script>
+
+<style>
+/* Private Chat Window Styles */
+.private-chats-challenge {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.private-chat-window {
+    width: 300px;
+    height: 400px;
+    background: white;
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+}
+
+.private-chat-header {
+    background: #007bff;
+    color: white;
+    padding: 0.75rem;
+    border-radius: 8px 8px 0 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.private-chat-header h6 {
+    margin: 0;
+    font-size: 0.875rem;
+}
+
+.close-chat-btn {
+    background: none;
+    border: none;
+    color: white;
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.close-chat-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.private-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0.75rem;
+    background: #f8f9fa;
+}
+
+.private-input {
+    padding: 0.75rem;
+    border-top: 1px solid #dee2e6;
+    background: white;
+    border-radius: 0 0 8px 8px;
+    display: flex;
+    gap: 0.5rem;
+}
+
+.private-input input {
+    flex: 1;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid #ced4da;
+    border-radius: 20px;
+    font-size: 0.875rem;
+}
+
+.private-input input:focus {
+    outline: none;
+    border-color: #007bff;
+    box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
+.private-input button {
+    background: #007bff;
+    border: none;
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.3s ease;
+}
+
+.private-input button:hover {
+    background: #0056b3;
+    transform: scale(1.05);
+}
+</style>
 {% endblock %}

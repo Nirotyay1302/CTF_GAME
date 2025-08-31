@@ -6,13 +6,16 @@ A clean, modern, and fully functional CTF application
 import os
 import secrets
 import hashlib
+import time
 from datetime import datetime, timedelta
 from functools import wraps
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, g
 from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.utils import secure_filename
 from cryptography.fernet import Fernet
 from sqlalchemy.sql import func
+from sqlalchemy import text
 
 # Import SocketIO with error handling
 try:
@@ -25,7 +28,7 @@ except ImportError:
 # Import models and extensions
 from models import (
     db, User, Challenge, Solve, Submission, Team, TeamMembership,
-    Tournament, Hint, UserHint, Notification, ChatMessage
+    Tournament, Hint, UserHint, Notification, ChatMessage, Friend
 )
 from flask_mail import Mail
 from flask_migrate import Migrate
@@ -36,6 +39,7 @@ app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
+app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
 
 # Database configuration with psycopg3 support
 database_url = os.environ.get('DATABASE_URL', 'sqlite:///ctf.db')
@@ -91,7 +95,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
             return redirect(url_for('login'))
-        user = User.query.get(session['user_id'])
+        user = db.session.get(User, session['user_id'])
         if not user or user.role != 'admin':
             flash('Admin privileges required.', 'error')
             return redirect(url_for('index'))
@@ -100,7 +104,7 @@ def admin_required(f):
 
 def get_current_user():
     if 'user_id' in session:
-        return User.query.get(session['user_id'])
+        return db.session.get(User, session['user_id'])
     return None
 
 def encrypt_flag(flag):
@@ -149,7 +153,7 @@ def inject_user():
 @app.before_request
 def load_logged_in_user():
     user_id = session.get('user_id')
-    g.user = User.query.get(user_id) if user_id else None
+    g.user = db.session.get(User, user_id) if user_id else None
 
 # Error handlers
 @app.errorhandler(404)
@@ -1070,11 +1074,97 @@ if SOCKETIO_AVAILABLE:
     def handle_connect():
         if 'user_id' in session:
             user = get_current_user()
+            user.is_online = True
+            user.last_seen = datetime.utcnow()
+            db.session.commit()
+            
+            # Emit online status to friends
+            emit('friend_online', {'user_id': user.id}, broadcast=True)
             emit('status', {'message': f'Welcome, {user.username}!'})
+
+    @app.route('/api/chat/initial_data')
+    @login_required
+    def get_initial_chat_data():
+        user = get_current_user()
+        if not user:
+            return jsonify({'error': 'Unauthorized'}), 401
+
+        chat_rooms = [
+            {
+                'id': 'general',
+                'name': 'general',
+                'displayName': 'General Chat',
+                'icon': 'globe',
+                'description': 'Public discussion for all players'
+            }
+        ]
+
+        # Add team chat if user is in a team
+        user_team_membership = TeamMembership.query.filter_by(user_id=user.id).first()
+        if user_team_membership:
+            team = user_team_membership.team
+            chat_rooms.append({
+                'id': f'team-{team.id}',
+                'name': team.name,
+                'displayName': f'Team: {team.name}',
+                'icon': 'users',
+                'description': 'Private team discussion'
+            })
+
+        # Add friend chats (for accepted friends)
+        friend_relationships = Friend.query.filter(
+            ((Friend.user_id == user.id) | (Friend.friend_id == user.id)) &
+            (Friend.status == 'accepted')
+        ).all()
+
+        for relationship in friend_relationships:
+            friend_user = None
+            if relationship.user_id == user.id:
+                friend_user = db.session.get(User, relationship.friend_id)
+            else:
+                friend_user = db.session.get(User, relationship.user_id)
+            
+            if friend_user:
+                # Implement private chat room ID logic (e.g., sort user IDs to create consistent room name)
+                room_users = sorted([user.id, friend_user.id])
+                private_room_id = f'private-{room_users[0]}-{room_users[1]}'
+
+                chat_rooms.append({
+                    'id': private_room_id,
+                    'name': f'{friend_user.username}',
+                    'displayName': f'Private with {friend_user.username}',
+                    'icon': 'user',
+                    'description': f'Private chat with {friend_user.username}'
+                })
+
+        return jsonify({
+            'currentUser': {
+                'id': user.id,
+                'username': user.username,
+                'profile_picture': user.profile_picture or '/static/images/default-avatar.svg'
+            },
+            'chatRooms': chat_rooms,
+            'friends': [
+                {'id': f.id, 'username': f.username, 'profile_picture': f.profile_picture, 'is_online': f.is_online}
+                for f in [db.session.get(User, r.friend_id) if r.user_id == user.id else db.session.get(User, r.user_id) for r in friend_relationships]
+            ],
+            'pendingRequests': [
+                {'id': r.id, 'sender_id': r.user_id, 'sender_username': db.session.get(User, r.user_id).username,
+                 'sender_profile_picture': db.session.get(User, r.user_id).profile_picture}
+                for r in Friend.query.filter_by(friend_id=user.id, status='pending').all()
+            ]
+        })
 
     @socketio.on('disconnect')
     def handle_disconnect():
-        pass
+        if 'user_id' in session:
+            user = get_current_user()
+            user.is_online = False
+            user.last_seen = datetime.utcnow()
+            db.session.commit()
+            
+            # Emit offline status to friends
+            emit('friend_offline', {'user_id': user.id}, broadcast=True)
 
     @socketio.on('join_chat')
     def handle_join_chat(data):
@@ -1109,20 +1199,36 @@ if SOCKETIO_AVAILABLE:
                 db.session.add(chat_message)
                 db.session.commit()
 
-                # Emit to room
+                # Emit to room with full message data
                 emit('new_message', {
+                    'id': chat_message.id,
+                    'user_id': user.id,
                     'username': user.username,
-                    'message': message,
-                    'timestamp': datetime.utcnow().isoformat(),
-                    'room': room
+                    'content': message,
+                    'created_at': chat_message.created_at.isoformat(),
+                    'room': room,
+                    'user_avatar': user.profile_picture or '/static/images/default-avatar.svg'
                 }, room=room)
+
+    @socketio.on('typing')
+    def handle_typing(data):
+        if 'user_id' in session:
+            user = get_current_user()
+            room = data.get('room', 'general')
+            is_typing = data.get('is_typing', False)
+            
+            if is_typing:
+                emit('user_typing', {
+                    'username': user.username,
+                    'user_id': user.id
+                }, room=room, include_self=False)
 
 # Team Management Routes
 @app.route('/teams')
 @login_required
 def teams():
     """Display teams page with team management"""
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
 
     # Prevent admin from accessing team features
     if user.role == 'admin':
@@ -1161,7 +1267,7 @@ def teams():
 @login_required
 def create_team():
     """Create a new team"""
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
 
     # Check if user is already in a team
     existing_membership = TeamMembership.query.filter_by(user_id=user.id).first()
@@ -1216,7 +1322,7 @@ def create_team():
 @login_required
 def join_team():
     """Join a team using team code"""
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
 
     # Check if user is already in a team
     existing_membership = TeamMembership.query.filter_by(user_id=user.id).first()
@@ -1263,7 +1369,7 @@ def join_team():
 @login_required
 def leave_team():
     """Leave current team"""
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
 
     membership = TeamMembership.query.filter_by(user_id=user.id).first()
     if not membership:
@@ -1304,7 +1410,7 @@ def leave_team():
 @login_required
 def delete_team():
     """Delete the current team (leader only)"""
-    current_user = User.query.get(session['user_id'])
+    current_user = db.session.get(User, session['user_id'])
 
     # Check if current user is a team leader
     current_membership = TeamMembership.query.filter_by(user_id=current_user.id).first()
@@ -1330,12 +1436,86 @@ def delete_team():
 
     return redirect(url_for('teams'))
 
+@app.route('/teams/promote/<int:user_id>', methods=['POST'])
+@login_required
+def promote_member(user_id):
+    """Promote a team member to leader (current leader only)"""
+    current_user = db.session.get(User, session['user_id'])
+    
+    # Check if current user is a team leader
+    current_membership = TeamMembership.query.filter_by(user_id=current_user.id).first()
+    if not current_membership or current_membership.role != 'leader':
+        flash('Only team leaders can promote members.', 'error')
+        return redirect(url_for('teams'))
+    
+    # Get the member to promote
+    member_membership = TeamMembership.query.filter_by(
+        user_id=user_id, 
+        team_id=current_membership.team_id
+    ).first()
+    
+    if not member_membership:
+        flash('Member not found in team.', 'error')
+        return redirect(url_for('teams'))
+    
+    try:
+        # Demote current leader to member
+        current_membership.role = 'member'
+        
+        # Promote new member to leader
+        member_membership.role = 'leader'
+        
+        db.session.commit()
+        flash(f'{member_membership.user.username} has been promoted to team leader.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error promoting member. Please try again.', 'error')
+    
+    return redirect(url_for('teams'))
+
+@app.route('/teams/kick/<int:user_id>', methods=['POST'])
+@login_required
+def kick_member(user_id):
+    """Kick a member from the team (leader only)"""
+    current_user = db.session.get(User, session['user_id'])
+    
+    # Check if current user is a team leader
+    current_membership = TeamMembership.query.filter_by(user_id=current_user.id).first()
+    if not current_membership or current_membership.role != 'leader':
+        flash('Only team leaders can kick members.', 'error')
+        return redirect(url_for('teams'))
+    
+    # Get the member to kick
+    member_membership = TeamMembership.query.filter_by(
+        user_id=user_id, 
+        team_id=current_membership.team_id
+    ).first()
+    
+    if not member_membership:
+        flash('Member not found in team.', 'error')
+        return redirect(url_for('teams'))
+    
+    if member_membership.user_id == current_user.id:
+        flash('You cannot kick yourself from the team.', 'error')
+        return redirect(url_for('teams'))
+    
+    try:
+        member_name = member_membership.user.username
+        db.session.delete(member_membership)
+        db.session.commit()
+        flash(f'{member_name} has been removed from the team.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error removing member. Please try again.', 'error')
+    
+    return redirect(url_for('teams'))
+
 # Chat Routes
 @app.route('/chat')
 @login_required
 def chat():
     """Main chat page"""
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
 
     # Prevent admin from accessing chat
     if user.role == 'admin':
@@ -1348,7 +1528,23 @@ def chat():
     if team_membership:
         user_team = team_membership.team
 
-    return render_template('chat.html', user_team=user_team, current_user=user)
+    # Get user's friends for friends chat
+    friends = []
+    friend_relationships = Friend.query.filter(
+        ((Friend.user_id == user.id) | (Friend.friend_id == user.id)) &
+        (Friend.status == 'accepted')
+    ).all()
+    
+    for relationship in friend_relationships:
+        if relationship.user_id == user.id:
+            friend_user = db.session.get(User, relationship.friend_id)
+        else:
+            friend_user = db.session.get(User, relationship.user_id)
+        
+        if friend_user:
+            friends.append(friend_user)
+
+    return render_template('chat.html', user_team=user_team, current_user=user, friends=friends)
 
 @app.route('/api/chat/messages')
 @login_required
@@ -1356,7 +1552,7 @@ def get_chat_messages():
     """Get chat messages for a specific room"""
     room = request.args.get('room', 'general')
     limit = int(request.args.get('limit', 50))
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
 
     # Prevent admin from accessing chat
     if user.role == 'admin':
@@ -1384,7 +1580,7 @@ def get_chat_messages():
 @login_required
 def send_chat_message():
     """Send a chat message"""
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
 
     # Prevent admin from sending messages
     if user.role == 'admin':
@@ -1433,7 +1629,7 @@ def send_chat_message():
 @login_required
 def edit_chat_message(message_id):
     """Edit a chat message"""
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
 
     message = ChatMessage.query.get_or_404(message_id)
 
@@ -1468,7 +1664,7 @@ def edit_chat_message(message_id):
 @login_required
 def delete_chat_message(message_id):
     """Delete a chat message"""
-    user = User.query.get(session['user_id'])
+    user = db.session.get(User, session['user_id'])
 
     message = ChatMessage.query.get_or_404(message_id)
 
@@ -1484,14 +1680,415 @@ def delete_chat_message(message_id):
         db.session.rollback()
         return jsonify({'error': 'Failed to delete message'}), 500
 
+# Friend System API Routes (for chat integration)
+
+@app.route('/friends/search')
+@login_required
+def search_users():
+    """Search for users to add as friends"""
+    query = request.args.get('q', '').strip()
+    if not query:
+        return jsonify([])
+    
+    # Search users by username or email
+    users = User.query.filter(
+        (User.username.contains(query)) | (User.email.contains(query))
+    ).filter(User.id != get_current_user().id).limit(10).all()
+    
+    # Check friendship status for each user
+    current_user = get_current_user()
+    results = []
+    for user in users:
+        # Check if already friends
+        friendship = Friend.query.filter(
+            ((Friend.user_id == current_user.id) & (Friend.friend_id == user.id)) |
+            ((Friend.user_id == user.id) & (Friend.friend_id == current_user.id))
+        ).first()
+        
+        status = 'none'
+        if friendship:
+            status = friendship.status
+        
+        results.append({
+            'id': user.id,
+            'username': user.username,
+            'profile_picture': user.profile_picture,
+            'is_online': user.is_online,
+            'last_seen': user.last_seen.isoformat() if user.last_seen else None,
+            'friendship_status': status
+        })
+    
+    return jsonify(results)
+
+@app.route('/friends/request', methods=['POST'])
+@login_required
+def send_friend_request():
+    """Send a friend request"""
+    friend_id = request.form.get('friend_id', type=int)
+    if not friend_id:
+        return jsonify({'success': False, 'message': 'Friend ID is required'})
+    
+    current_user = get_current_user()
+    
+    # Check if already friends or request exists
+    existing = Friend.query.filter(
+        ((Friend.user_id == current_user.id) & (Friend.friend_id == friend_id)) |
+        ((Friend.user_id == friend_id) & (Friend.friend_id == current_user.id))
+    ).first()
+    
+    if existing:
+        return jsonify({'success': False, 'message': 'Friend request already exists'})
+    
+    # Create friend request
+    friend_request = Friend(
+        user_id=current_user.id,
+        friend_id=friend_id,
+        status='pending'
+    )
+    
+    try:
+        db.session.add(friend_request)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Friend request sent!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Error sending friend request'})
+
+@app.route('/friends/accept/<int:request_id>', methods=['POST'])
+@login_required
+def accept_friend_request(request_id):
+    """Accept a friend request"""
+    friend_request = Friend.query.get_or_404(request_id)
+    
+    if friend_request.friend_id != get_current_user().id:
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    friend_request.status = 'accepted'
+    friend_request.accepted_at = datetime.utcnow()
+    
+    try:
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Friend request accepted!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Error accepting friend request'})
+
+@app.route('/friends/reject/<int:request_id>', methods=['POST'])
+@login_required
+def reject_friend_request(request_id):
+    """Reject a friend request"""
+    friend_request = Friend.query.get_or_404(request_id)
+    
+    if friend_request.friend_id != get_current_user().id:
+        return jsonify({'success': False, 'message': 'Unauthorized'})
+    
+    try:
+        db.session.delete(friend_request)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Friend request rejected!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Error rejecting friend request'})
+
+@app.route('/friends/cancel/<int:friend_id>', methods=['POST'])
+@login_required
+def cancel_friend_request(friend_id):
+    """Cancel a friend request sent by the current user"""
+    current_user = get_current_user()
+    
+    # Find the pending friend request
+    friend_request = Friend.query.filter_by(
+        user_id=current_user.id,
+        friend_id=friend_id,
+        status='pending'
+    ).first_or_404()
+    
+    try:
+        db.session.delete(friend_request)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Friend request cancelled!'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Error cancelling friend request'})
+
+@app.route('/friends/pending', methods=['GET'])
+@login_required
+def get_pending_friend_requests():
+    """Get pending friend requests for the current user"""
+    current_user = get_current_user()
+    
+    # Get pending friend requests
+    pending_requests = Friend.query.filter_by(friend_id=current_user.id, status='pending').all()
+    
+    requests = []
+    for request in pending_requests:
+        sender = db.session.get(User, request.user_id)
+        if sender:
+            requests.append({
+                'id': request.id,
+                'user_id': sender.id,
+                'username': sender.username,
+                'profile_picture': sender.profile_picture,
+                'created_at': request.created_at.isoformat()
+            })
+    
+    return jsonify({'success': True, 'requests': requests})
+
+# Chat Messages API
+@app.route('/api/messages', methods=['GET', 'POST'])
+@login_required
+def handle_messages():
+    """Handle chat messages"""
+    if request.method == 'GET':
+        # Get messages for a room
+        room = request.args.get('room', 'general')
+        messages = ChatMessage.query.filter_by(room=room).order_by(ChatMessage.created_at.desc()).limit(50).all()
+        messages.reverse()  # Show oldest first
+        
+        message_list = []
+        for msg in messages:
+            user = db.session.get(User, msg.user_id)
+            message_list.append({
+                'id': msg.id,
+                'content': msg.content,
+                'user_id': msg.user_id,
+                'username': user.username if user else 'Unknown',
+                'timestamp': msg.created_at.isoformat(),
+                'room': msg.room
+            })
+        
+        return jsonify({'success': True, 'messages': message_list})
+    
+    elif request.method == 'POST':
+        # Send a new message
+        data = request.get_json()
+        content = data.get('content', '').strip()
+        room = data.get('room', 'general')
+        
+        if not content:
+            return jsonify({'success': False, 'message': 'Message content is required'})
+        
+        current_user = get_current_user()
+        
+        # Create new message
+        message = ChatMessage(
+            content=content,
+            user_id=current_user.id,
+            room=room,
+            created_at=datetime.utcnow()
+        )
+        
+        try:
+            db.session.add(message)
+            db.session.commit()
+            
+            return jsonify({
+                'success': True,
+                'message': 'Message sent successfully',
+                'message': {
+                    'id': message.id,
+                    'content': message.content,
+                    'user_id': message.user_id,
+                    'username': current_user.username,
+                    'timestamp': message.created_at.isoformat(),
+                    'room': message.room
+                }
+            })
+        except Exception as e:
+            db.session.rollback()
+            return jsonify({'success': False, 'message': 'Error sending message'})
+
+# File Upload API
+@app.route('/api/upload', methods=['POST'])
+@login_required
+def upload_file():
+    """Handle file uploads for chat"""
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': 'No file provided'})
+    
+    file = request.files['file']
+    room = request.form.get('room', 'general')
+    
+    if file.filename == '':
+        return jsonify({'success': False, 'message': 'No file selected'})
+    
+    if file:
+        # Check file size (max 10MB)
+        file.seek(0, 2)  # Seek to end
+        file_size = file.tell()
+        file.seek(0)  # Reset to beginning
+        
+        if file_size > 10 * 1024 * 1024:  # 10MB
+            return jsonify({'success': False, 'message': 'File size must be less than 10MB'})
+        
+        # Generate unique filename
+        filename = secure_filename(file.filename)
+        timestamp = int(time.time())
+        name, ext = os.path.splitext(filename)
+        unique_filename = f"{name}_{timestamp}{ext}"
+        
+        # Save file to uploads directory
+        upload_folder = os.path.join(app.config['UPLOAD_FOLDER'], 'chat_files')
+        os.makedirs(upload_folder, exist_ok=True)
+        file_path = os.path.join(upload_folder, unique_filename)
+        file.save(file_path)
+        
+        # Create message for the uploaded file
+        current_user = get_current_user()
+        file_url = url_for('static', filename=f'uploads/chat_files/{unique_filename}')
+        
+        # Determine file type and create appropriate message
+        file_ext = ext.lower()
+        message_type = 'file'
+
+        if file_ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.webp']:
+            message_content = f"📷 [Image: {filename}]({file_url})"
+            message_type = 'image'
+        elif file_ext in ['.mp4', '.avi', '.mov', '.wmv', '.flv', '.webm']:
+            message_content = f"🎥 [Video: {filename}]({file_url})"
+            message_type = 'video'
+        elif file_ext in ['.pdf', '.doc', '.docx', '.txt']:
+            message_content = f"📄 [Document: {filename}]({file_url})"
+            message_type = 'document'
+        else:
+            message_content = f"📎 [File: {filename}]({file_url})"
+            message_type = 'file'
+
+        # Save message to database
+        message = ChatMessage(
+            content=message_content,
+            user_id=current_user.id,
+            room=room,
+            message_type=message_type,
+            created_at=datetime.utcnow()
+        )
+        db.session.add(message)
+        db.session.commit()
+
+        # Emit new message via SocketIO
+        if SOCKETIO_AVAILABLE:
+            socketio.emit('new_message', message.to_dict(), room=room)
+
+        # Return success response
+        return jsonify({
+            'success': True,
+            'message': 'File uploaded successfully',
+            'file_url': file_url,
+            'filename': filename,
+            'message_id': message.id # Optionally return message ID
+        })
+
+    return jsonify({'success': False, 'message': 'Error uploading file'})
+    
+    try:
+        db.session.delete(friend_request)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Friend request rejected'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Error rejecting friend request'})
+
+@app.route('/friends/remove/<int:friend_id>', methods=['POST'])
+@login_required
+def remove_friend(friend_id):
+    """Remove a friend"""
+    current_user = db.session.get(User, session['user_id'])
+    
+    friendship = Friend.query.filter(
+        ((Friend.user_id == current_user.id) & (Friend.friend_id == friend_id)) |
+        ((Friend.user_id == friend_id) & (Friend.friend_id == current_user.id))
+    ).first()
+    
+    if not friendship:
+        return jsonify({'success': False, 'message': 'Friendship not found'})
+    
+    try:
+        db.session.delete(friendship)
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Friend removed'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': 'Error removing friend'})
+
+# Update online status
+@app.route('/api/online', methods=['POST'])
+@login_required
+def update_online_status():
+    """Update user's online status"""
+    user = db.session.get(User, session['user_id'])
+    user.is_online = True
+    user.last_seen = datetime.utcnow()
+    
+    try:
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False})
+
 if __name__ == '__main__':
     with app.app_context():
         try:
             db.create_all()
             print("✅ Database tables created/verified")
 
+            # Lightweight schema reconciliation for legacy SQLite databases
+            try:
+                if str(db.engine.url).startswith('sqlite:///'):
+                    # Handle chat_message table
+                    result = db.session.execute(text("PRAGMA table_info(chat_message)"))
+                    existing_columns = {row[1] for row in result}
+
+                    # Add missing columns expected by current models
+                    if 'team_id' not in existing_columns:
+                        db.session.execute(text("ALTER TABLE chat_message ADD COLUMN team_id INTEGER"))
+                    if 'message_type' not in existing_columns:
+                        db.session.execute(text("ALTER TABLE chat_message ADD COLUMN message_type VARCHAR(20)"))
+                    if 'edited' not in existing_columns:
+                        db.session.execute(text("ALTER TABLE chat_message ADD COLUMN edited BOOLEAN DEFAULT 0"))
+                    if 'edited_at' not in existing_columns:
+                        db.session.execute(text("ALTER TABLE chat_message ADD COLUMN edited_at DATETIME"))
+                    if 'reply_to_id' not in existing_columns:
+                        db.session.execute(text("ALTER TABLE chat_message ADD COLUMN reply_to_id INTEGER"))
+                    if 'room' not in existing_columns:
+                        db.session.execute(text("ALTER TABLE chat_message ADD COLUMN room VARCHAR(50) DEFAULT 'general'"))
+                    if 'created_at' not in existing_columns:
+                        db.session.execute(text("ALTER TABLE chat_message ADD COLUMN created_at DATETIME"))
+                    
+                    # Handle user table
+                    result = db.session.execute(text("PRAGMA table_info(user)"))
+                    existing_user_columns = {row[1] for row in result}
+                    
+                    if 'is_online' not in existing_user_columns:
+                        db.session.execute(text("ALTER TABLE user ADD COLUMN is_online BOOLEAN DEFAULT 0"))
+                    if 'last_seen' not in existing_user_columns:
+                        db.session.execute(text("ALTER TABLE user ADD COLUMN last_seen DATETIME"))
+                    
+                    # Check if friend table exists
+                    try:
+                        db.session.execute(text("SELECT 1 FROM friend LIMIT 1"))
+                    except:
+                        # Create friend table if it doesn't exist
+                        db.session.execute(text("""
+                            CREATE TABLE friend (
+                                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                                user_id INTEGER NOT NULL,
+                                friend_id INTEGER NOT NULL,
+                                status VARCHAR(20) NOT NULL DEFAULT 'pending',
+                                created_at DATETIME NOT NULL,
+                                accepted_at DATETIME,
+                                FOREIGN KEY (user_id) REFERENCES user (id),
+                                FOREIGN KEY (friend_id) REFERENCES user (id)
+                            )
+                        """))
+                    
+                    db.session.commit()
+                    print("✅ Schema reconciliation completed")
+            except Exception as schema_err:
+                print(f"⚠️ Schema reconciliation skipped/failed: {schema_err}")
+
             # Create admin user if it doesn't exist
-            admin = User.query.filter_by(username='admin').first()
+            admin = db.session.query(User).filter_by(username='admin').first()
             if not admin:
                 admin = User(
                     username='admin',
