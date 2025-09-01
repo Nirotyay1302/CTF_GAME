@@ -160,6 +160,35 @@ def _load_encryption_key():
 ENCRYPTION_KEY = _load_encryption_key()
 cipher_suite = Fernet(ENCRYPTION_KEY)
 
+# Cloudflare R2 / S3-compatible storage helpers
+
+def _r2_config():
+    return {
+        'endpoint': os.environ.get('R2_ENDPOINT'),
+        'access_key': os.environ.get('R2_ACCESS_KEY_ID'),
+        'secret_key': os.environ.get('R2_SECRET_ACCESS_KEY'),
+        'bucket': os.environ.get('R2_BUCKET'),
+        'public_base': os.environ.get('R2_PUBLIC_BASE_URL'),
+    }
+
+
+def _r2_enabled():
+    cfg = _r2_config()
+    return bool(cfg['endpoint'] and cfg['access_key'] and cfg['secret_key'] and cfg['bucket'])
+
+
+def _get_s3_client():
+    if not _r2_enabled():
+        return None
+    import boto3
+    cfg = _r2_config()
+    return boto3.client(
+        's3',
+        endpoint_url=cfg['endpoint'],
+        aws_access_key_id=cfg['access_key'],
+        aws_secret_access_key=cfg['secret_key']
+    )
+
 # Helper functions
 def login_required(f):
     @wraps(f)
@@ -1196,14 +1225,34 @@ def profile():
                     name, ext = os.path.splitext(filename)
                     unique_filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
 
-                    # Save file to uploads directory
-                    uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
-                    os.makedirs(uploads_dir, exist_ok=True)
-                    file_path = os.path.join(uploads_dir, unique_filename)
-                    file.save(file_path)
-
-                    # Update user profile picture
-                    user.profile_picture = unique_filename
+                    # Try S3/R2 upload if configured
+                    if _r2_enabled():
+                        try:
+                            s3 = _get_s3_client()
+                            cfg = _r2_config()
+                            # Upload stream to bucket with content type
+                            s3.upload_fileobj(
+                                file.stream,
+                                cfg['bucket'],
+                                unique_filename,
+                                ExtraArgs={'ContentType': file.mimetype}
+                            )
+                            # Store object key
+                            user.profile_picture = unique_filename
+                        except Exception as e:
+                            # Fallback to local save if upload fails
+                            uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+                            os.makedirs(uploads_dir, exist_ok=True)
+                            file_path = os.path.join(uploads_dir, unique_filename)
+                            file.save(file_path)
+                            user.profile_picture = unique_filename
+                    else:
+                        # Local save (development or no object storage configured)
+                        uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+                        os.makedirs(uploads_dir, exist_ok=True)
+                        file_path = os.path.join(uploads_dir, unique_filename)
+                        file.save(file_path)
+                        user.profile_picture = unique_filename
 
             db.session.commit()
             flash('Profile updated successfully!', 'success')
@@ -1241,14 +1290,34 @@ def profile():
 
 @app.route('/profile_picture/<filename>')
 def profile_picture(filename):
-    """Serve profile pictures"""
+    """Serve profile pictures from object storage if configured, else local uploads"""
     import os
     from flask import send_from_directory
 
-    # Check if file exists in uploads directory
+    # If R2/S3 is configured, redirect to public URL or a presigned URL
+    try:
+        if _r2_enabled():
+            cfg = _r2_config()
+            if cfg['public_base']:
+                # Public base URL provided
+                base = cfg['public_base'].rstrip('/')
+                return redirect(f"{base}/{filename}")
+            else:
+                # Generate presigned URL as a fallback
+                s3 = _get_s3_client()
+                url = s3.generate_presigned_url(
+                    'get_object',
+                    Params={'Bucket': cfg['bucket'], 'Key': filename},
+                    ExpiresIn=3600
+                )
+                return redirect(url)
+    except Exception:
+        # Fall through to local file serving
+        pass
+
+    # Fallback: serve from local uploads directory
     uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
     file_path = os.path.join(uploads_dir, filename)
-
     if os.path.exists(file_path):
         return send_from_directory(uploads_dir, filename)
     else:
