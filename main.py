@@ -56,7 +56,8 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
 
 # Database configuration with psycopg3 support
-database_url = os.environ.get('DATABASE_URL', 'sqlite:///ctf.db')
+raw_url = os.environ.get('DATABASE_URL')
+database_url = (raw_url or '').strip() or 'sqlite:///ctf.db'
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
 elif database_url.startswith('postgresql://'):
