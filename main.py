@@ -122,7 +122,7 @@ compress = Compress(app)
 
 # Initialize SocketIO if available
 if SOCKETIO_AVAILABLE:
-    socketio = SocketIO(app, cors_allowed_origins="*")
+    socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
 else:
     socketio = None
 
