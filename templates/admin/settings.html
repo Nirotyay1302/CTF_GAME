@@ -1,0 +1,337 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Settings - Admin Panel{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Settings</li>
+{% endblock %}
+
+{% block content %}
+<!-- Settings Header -->
+<div class="admin-header">
+    <div class="admin-header-content">
+        <div class="admin-title">
+            <h1><i class="fas fa-cogs"></i> Platform Settings</h1>
+            <p>Configure system-wide settings for the CTF platform</p>
+        </div>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Statistics -->
+<div class="stats-grid mb-4">
+    <div class="stat-card primary">
+        <div class="stat-icon">
+            <i class="fas fa-cogs"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-number">System</div>
+            <div class="stat-label">Platform Configuration</div>
+        </div>
+    </div>
+    
+    <div class="stat-card success">
+        <div class="stat-icon">
+            <i class="fas fa-shield-alt"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-number">Security</div>
+            <div class="stat-label">Protection Settings</div>
+        </div>
+    </div>
+    
+    <div class="stat-card warning">
+        <div class="stat-icon">
+            <i class="fas fa-bell"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-number">Notifications</div>
+            <div class="stat-label">Alert Configuration</div>
+        </div>
+    </div>
+</div>
+
+<!-- Settings Sections -->
+<div class="admin-card mb-4">
+    <div class="admin-card-header">
+        <span><i class="fas fa-server"></i> System Settings</span>
+    </div>
+    <div class="admin-card-body">
+        <form id="system-settings-form">
+            <div class="form-group mb-3">
+                <label for="platform_name" class="form-label">Platform Name</label>
+                <input type="text" class="form-control" id="platform_name" name="platform_name" value="HUNTING-CTF">
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="platform_description" class="form-label">Platform Description</label>
+                <textarea class="form-control" id="platform_description" name="platform_description" rows="3">The ultimate Capture The Flag competition platform for cybersecurity enthusiasts.</textarea>
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="maintenance_mode" class="form-label">Maintenance Mode</label>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="maintenance_mode" name="maintenance_mode">
+                    <label class="form-check-label" for="maintenance_mode">Enable maintenance mode</label>
+                </div>
+                <small class="text-muted">When enabled, only administrators can access the platform.</small>
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="registration_enabled" class="form-label">User Registration</label>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="registration_enabled" name="registration_enabled" checked>
+                    <label class="form-check-label" for="registration_enabled">Allow new user registrations</label>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save System Settings</button>
+        </form>
+    </div>
+</div>
+
+<div class="admin-card mb-4">
+    <div class="admin-card-header">
+        <span><i class="fas fa-shield-alt"></i> Security Settings</span>
+    </div>
+    <div class="admin-card-body">
+        <form id="security-settings-form">
+            <div class="form-group mb-3">
+                <label for="password_policy" class="form-label">Password Policy</label>
+                <select class="form-select" id="password_policy" name="password_policy">
+                    <option value="basic">Basic (minimum 8 characters)</option>
+                    <option value="standard" selected>Standard (8+ chars, uppercase, lowercase, number)</option>
+                    <option value="strong">Strong (12+ chars, uppercase, lowercase, number, special)</option>
+                </select>
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="session_timeout" class="form-label">Session Timeout (minutes)</label>
+                <input type="number" class="form-control" id="session_timeout" name="session_timeout" value="60" min="5" max="1440">
+                <small class="text-muted">How long until inactive users are automatically logged out.</small>
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="rate_limiting" class="form-label">Rate Limiting</label>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="rate_limiting" name="rate_limiting" checked>
+                    <label class="form-check-label" for="rate_limiting">Enable rate limiting for API requests</label>
+                </div>
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="two_factor_auth" class="form-label">Two-Factor Authentication</label>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="two_factor_auth" name="two_factor_auth">
+                    <label class="form-check-label" for="two_factor_auth">Require 2FA for all users</label>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save Security Settings</button>
+        </form>
+    </div>
+</div>
+
+<div class="admin-card mb-4">
+    <div class="admin-card-header">
+        <span><i class="fas fa-envelope"></i> Email Configuration</span>
+    </div>
+    <div class="admin-card-body">
+        <form id="email-settings-form" action="{{ url_for('admin_settings') }}" method="POST">
+            <input type="hidden" name="action" value="update_email_settings">
+            <div class="form-group mb-3">
+                <label for="mail_server" class="form-label">SMTP Server</label>
+                <input type="text" class="form-control" id="mail_server" name="mail_server" value="{{ email_settings.mail_server }}">
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="mail_port" class="form-label">SMTP Port</label>
+                <input type="number" class="form-control" id="mail_port" name="mail_port" value="{{ email_settings.mail_port }}">
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="mail_use_tls" class="form-label">Use TLS</label>
+                <div class="form-check form-switch">
+                    <input class="form-check-input" type="checkbox" id="mail_use_tls" name="mail_use_tls" {% if email_settings.mail_use_tls %}checked{% endif %}>
+                    <label class="form-check-label" for="mail_use_tls">Enable TLS encryption</label>
+                </div>
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="mail_username" class="form-label">SMTP Username</label>
+                <input type="text" class="form-control" id="mail_username" name="mail_username" value="{{ email_settings.mail_username }}">
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="mail_password" class="form-label">SMTP Password</label>
+                <input type="password" class="form-control" id="mail_password" name="mail_password" placeholder="Enter new password">
+                <small class="text-muted">Leave blank to keep current password</small>
+            </div>
+            
+            <div class="form-group mb-3">
+                <label for="mail_default_sender" class="form-label">Default Sender</label>
+                <input type="text" class="form-control" id="mail_default_sender" name="mail_default_sender" value="{{ email_settings.mail_default_sender }}">
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save Email Settings</button>
+        </form>
+        
+        <hr class="my-4">
+        
+        <h5>Test Email Configuration</h5>
+        <form id="test-email-form" action="{{ url_for('admin_settings') }}" method="POST">
+            <input type="hidden" name="action" value="test_email">
+            <div class="form-group mb-3">
+                <label for="test_email_recipient" class="form-label">Recipient Email</label>
+                <input type="email" class="form-control" id="test_email_recipient" name="test_email_recipient" placeholder="Enter email address">
+            </div>
+            <button type="submit" class="btn btn-info">
+                <i class="fas fa-paper-plane"></i> Send Test Email
+            </button>
+        </form>
+    </div>
+</div>
+
+<div class="admin-card mb-4">
+    <div class="admin-card-header">
+        <span><i class="fas fa-bell"></i> Notification Settings</span>
+    </div>
+    <div class="admin-card-body">
+        <form id="notification-settings-form" action="{{ url_for('admin_settings') }}" method="POST">
+            <input type="hidden" name="action" value="update_email_settings">
+            <div class="form-group mb-3">
+                <label class="form-label">Email Notifications</label>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="email_new_user" name="email_new_user" {% if email_settings.email_new_user %}checked{% endif %}>
+                    <label class="form-check-label" for="email_new_user">New user registrations</label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="email_challenge_solved" name="email_challenge_solved" {% if email_settings.email_challenge_solved %}checked{% endif %}>
+                    <label class="form-check-label" for="email_challenge_solved">Challenge solved</label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="email_team_created" name="email_team_created" {% if email_settings.email_team_created %}checked{% endif %}>
+                    <label class="form-check-label" for="email_team_created">New team created</label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="email_on_login" name="email_on_login" {% if email_settings.email_on_login %}checked{% endif %}>
+                    <label class="form-check-label" for="email_on_login">User login (with score)</label>
+                </div>
+                <div class="form-check mb-2">
+                    <input class="form-check-input" type="checkbox" id="email_on_logout" name="email_on_logout" {% if email_settings.email_on_logout %}checked{% endif %}>
+                    <label class="form-check-label" for="email_on_logout">User logout (with score)</label>
+                </div>
+            </div>
+            
+            <button type="submit" class="btn btn-primary mb-3">
+                <i class="fas fa-save"></i> Save Notification Settings
+            </button>
+            
+            <div class="form-group mb-3">
+                <label for="notification_email" class="form-label">Admin Notification Email</label>
+                <input type="email" class="form-control" id="notification_email" name="notification_email" value="nirotyaymukherjee563@gmail.com">
+                <small class="text-muted">Email address to receive administrative notifications.</small>
+            </div>
+            
+            <button type="submit" class="btn btn-primary">Save Notification Settings</button>
+        </form>
+    </div>
+</div>
+
+<!-- Backup & Restore Section -->
+<div class="admin-card mb-4">
+    <div class="admin-card-header">
+        <span><i class="fas fa-database"></i> Backup & Restore</span>
+    </div>
+    <div class="admin-card-body">
+        <div class="row mb-4">
+            <div class="col-md-6">
+                <h5>Database Backup</h5>
+                <p>Create a backup of the entire database.</p>
+                <button class="btn btn-primary" id="backup-db-btn">
+                    <i class="fas fa-download"></i> Create Backup
+                </button>
+            </div>
+            <div class="col-md-6">
+                <h5>Restore Database</h5>
+                <p>Restore from a previous backup file.</p>
+                <div class="input-group">
+                    <input type="file" class="form-control" id="restore-file">
+                    <button class="btn btn-warning" id="restore-db-btn">
+                        <i class="fas fa-upload"></i> Restore
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Settings Page -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // System Settings Form
+        document.getElementById('system-settings-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Here you would normally send an AJAX request to save settings
+            showToast('System settings saved successfully!');
+        });
+        
+        // Security Settings Form
+        document.getElementById('security-settings-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Here you would normally send an AJAX request to save settings
+            showToast('Security settings saved successfully!');
+        });
+        
+        // Notification Settings Form
+        document.getElementById('notification-settings-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            // Here you would normally send an AJAX request to save settings
+            showToast('Notification settings saved successfully!');
+        });
+        
+        // Email Settings Form - This form submits directly to the server
+        // No need to prevent default as we want the form to submit normally
+        
+        // Test Email Form - This form submits directly to the server
+        // No need to prevent default as we want the form to submit normally
+        
+        // Backup Database Button
+        document.getElementById('backup-db-btn').addEventListener('click', function() {
+            // Here you would normally trigger a backup process
+            showToast('Database backup started. You will be notified when complete.');
+        });
+        
+        // Restore Database Button
+        document.getElementById('restore-db-btn').addEventListener('click', function() {
+            const fileInput = document.getElementById('restore-file');
+            if (fileInput.files.length === 0) {
+                showToast('Please select a backup file first.', 'error');
+                return;
+            }
+            
+            if (confirm('Warning: Restoring from backup will overwrite all current data. This action cannot be undone. Continue?')) {
+                // Here you would normally trigger a restore process
+                showToast('Database restore started. You will be notified when complete.');
+            }
+        });
+        
+        // Helper function to show toast notifications
+        function showToast(message, type = 'success') {
+            // Check if we have flash messages from the server
+            const flashMessages = document.querySelectorAll('.alert');
+            if (flashMessages.length > 0) {
+                // Server-side flash messages exist, don't show client-side toast
+                return;
+            }
+            
+            // This is a placeholder - you would implement this with your preferred toast library
+            alert(message);
+        }
+    });
+</script>
+{% endblock %}

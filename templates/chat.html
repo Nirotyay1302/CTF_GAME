@@ -17,6 +17,29 @@
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.3/css/all.min.css">
     <link rel="stylesheet" href="{{ url_for('static', filename='chat.css') }}">
+    <style>
+      .back-to-game-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: #4CAF50;
+        color: white;
+        padding: 8px 12px;
+        border-radius: 4px;
+        text-decoration: none;
+        font-weight: bold;
+        transition: background-color 0.3s;
+      }
+      
+      .back-to-game-btn:hover {
+        background-color: #45a049;
+        color: white;
+      }
+      
+      .back-to-game-btn i {
+        margin-right: 8px;
+      }
+    </style>
   </head>
 
   <body>
@@ -30,8 +53,7 @@
           <!-- Room items will be dynamically loaded here by chat.js -->
         </div>
         <div class="sidebar-footer">
-          <button id="notifications-btn" class="icon-btn" title="Notifications"><i class="fas fa-bell"></i></button>
-          <button id="settings-btn" class="icon-btn" title="Settings"><i class="fas fa-cog"></i></button>
+          <a href="{{ url_for('index') }}" class="back-to-game-btn" title="Back to Game"><i class="fas fa-gamepad"></i> Back to Game</a>
         </div>
       </aside>
 
@@ -47,9 +69,7 @@
             </div>
           </div>
           <div class="chat-actions">
-            <button id="add-friend-btn" class="action-btn" title="Add Friend"><i class="fas fa-user-plus"></i></button>
-            <button id="return-to-game-btn" class="action-btn" title="Return to Game"><i class="fas fa-gamepad"></i></button>
-            <button id="emoji-toggle" class="action-btn" title="Emoji"><i class="far fa-smile"></i></button>
+            <a href="{{ url_for('index') }}" class="action-btn" title="Back to Game"><i class="fas fa-gamepad"></i></a>
             <button id="attachment-toggle" class="action-btn" title="Attach File"><i class="fas fa-paperclip"></i></button>
           </div>
         </header>
@@ -133,59 +153,7 @@
     </div>
     <div id="toast-container"></div>
 
-    <!-- Notifications Panel -->
-    <div id="notifications-panel" class="side-panel hidden" style="transform: translateX(100%);">
-        <div class="panel-header">
-            <h3>Notifications</h3>
-            <button class="close-panel-btn" aria-label="Close notifications panel">&times;</button>
-        </div>
-        <div class="panel-content">
-            <div class="panel-section">
-                <h4>Friend Requests</h4>
-                <div id="friend-requests-container" class="friend-requests-list">
-                    <!-- Friend requests will be loaded here -->
-                    <div class="empty-state">
-                        <i class="fas fa-user-friends"></i>
-                        <p class="no-items-message">No pending friend requests</p>
-                    </div>
-                </div>
-            </div>
-            <div class="panel-section">
-                <h4>Recent Notifications</h4>
-                <div id="notifications-container" class="notifications-list">
-                    <!-- Notifications will be loaded here -->
-                    <div class="empty-state">
-                        <i class="fas fa-bell-slash"></i>
-                        <p class="no-items-message">No notifications</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Settings Panel Removed -->
-        </div>
-    </div>
-
-    <!-- Add Friend Modal -->
-    <div id="add-friend-modal" class="modal hidden">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h2>Add Friend</h2>
-                <button class="close-button">&times;</button>
-            </div>
-            <div class="modal-body">
-                <div class="search-input-wrapper">
-                    <input type="text" id="friend-search-input" placeholder="Search for users..." />
-                    <button id="friend-search-btn" class="icon-btn"><i class="fas fa-search"></i></button>
-                </div>
-                <div class="search-results" id="friend-search-results">
-                    <!-- Search results will be dynamically loaded here -->
-                    <p class="no-results">Search for users by username or email.</p>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- Notifications Panel and Add Friend Modal Removed -->
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js"></script>
     <script type="module" src="{{ url_for('static', filename='chat.js') }}"></script>

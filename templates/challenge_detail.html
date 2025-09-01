@@ -10,15 +10,15 @@
             <div class="card shadow-sm mb-4">
                 <div class="card-header bg-primary text-white">
                     <div class="d-flex justify-content-between align-items-center">
-                        <h4 class="mb-0">
+                        <h4 class="mb-0 fw-bold">
                             <i class="fas fa-flag me-2"></i>
                             {{ challenge.title }}
                         </h4>
                         <div class="challenge-meta">
-                            <span class="badge bg-light text-dark me-2">
+                            <span class="badge bg-light text-dark me-2 fs-6">
                                 <i class="fas fa-star me-1"></i>{{ challenge.points }} pts
                             </span>
-                            <span class="badge bg-{{ 'success' if solve else 'secondary' }}">
+                            <span class="badge bg-{{ 'success' if solve else 'secondary' }} fs-6">
                                 <i class="fas fa-{{ 'check' if solve else 'lock' }} me-1"></i>
                                 {{ 'Solved' if solve else 'Unsolved' }}
                             </span>
@@ -27,8 +27,8 @@
                 </div>
                 <div class="card-body">
                     <div class="challenge-description mb-4">
-                        <h5>Description</h5>
-                        <p>{{ challenge.description }}</p>
+                        <h5 class="text-primary fw-bold"><i class="fas fa-info-circle me-2"></i>Description</h5>
+                        <p class="fs-5 p-2 bg-light rounded">{{ challenge.description }}</p>
                     </div>
 
                     {% if challenge.attachment %}
@@ -41,64 +41,184 @@
                     </div>
                     {% endif %}
 
-                    <!-- Flag Submission -->
-                    <div class="flag-submission">
-                        <h5>Submit Flag</h5>
-                        <form id="flagForm" class="mb-3">
-                            <div class="input-group">
-                                <input type="text" class="form-control" id="flagInput" 
-                                       placeholder="Enter flag (format: flag{...})" required>
-                                <button class="btn btn-primary" type="submit">
-                                    <i class="fas fa-paper-plane me-2"></i>Submit
-                                </button>
+                    {% if solve %}
+                    <!-- Solution Information (Only shown after solving) -->
+                    <div class="solution-section mb-4">
+                        <h5 class="text-success fw-bold"><i class="fas fa-trophy me-2"></i>Challenge Solved!</h5>
+                        <div class="card border-success shadow-sm">
+                            <div class="card-header bg-success bg-opacity-10">
+                                <ul class="nav nav-tabs card-header-tabs nav-fill" id="solutionTabs" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active fw-semibold" id="explanation-tab" data-bs-toggle="tab" 
+                                                data-bs-target="#explanation" type="button" role="tab" 
+                                                aria-controls="explanation" aria-selected="true">
+                                            <i class="fas fa-lightbulb me-2"></i>Explanation
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link fw-semibold" id="solution-tab" data-bs-toggle="tab" 
+                                                data-bs-target="#solution" type="button" role="tab" 
+                                                aria-controls="solution" aria-selected="false">
+                                            <i class="fas fa-code me-2"></i>Solution Steps
+                                        </button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link fw-semibold" id="resources-tab" data-bs-toggle="tab" 
+                                                data-bs-target="#resources" type="button" role="tab" 
+                                                aria-controls="resources" aria-selected="false">
+                                            <i class="fas fa-book me-2"></i>Learning Resources
+                                        </button>
+                                    </li>
+                                </ul>
                             </div>
-                        </form>
+                            <div class="card-body p-4">
+                                <div class="tab-content" id="solutionTabsContent">
+                                    <div class="tab-pane fade show active" id="explanation" role="tabpanel" 
+                                         aria-labelledby="explanation-tab">
+                                        {% if challenge.answer_explanation %}
+                                            <div class="explanation-content bg-light p-3 rounded">
+                                                {{ challenge.answer_explanation|nl2br|safe }}
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted">No explanation available for this challenge.</p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="tab-pane fade" id="solution" role="tabpanel" 
+                                         aria-labelledby="solution-tab">
+                                        {% if challenge.solution_steps %}
+                                            <div class="solution-steps bg-light p-3 rounded">
+                                                {{ challenge.solution_steps|nl2br|safe }}
+                                            </div>
+                                        {% else %}
+                                            <p class="text-muted">No solution steps available for this challenge.</p>
+                                        {% endif %}
+                                    </div>
+                                    <div class="tab-pane fade" id="resources" role="tabpanel" 
+                                         aria-labelledby="resources-tab">
+                                        <div class="resources-content bg-light p-3 rounded">
+                                            <h6 class="fw-bold mb-3">Learn More About This Topic:</h6>
+                                            <ul class="resource-links">
+                                                {% if challenge.category == 'Web' %}
+                                                    <li><a href="https://owasp.org/www-project-top-ten/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">OWASP Top 10</a></li>
+                                                    <li><a href="https://portswigger.net/web-security" target="_blank" class="btn btn-outline-primary btn-sm mb-2">PortSwigger Web Security Academy</a></li>
+                                                {% elif challenge.category == 'Crypto' %}
+                                                    <li><a href="https://cryptohack.org/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">CryptoHack</a></li>
+                                                    <li><a href="https://www.cryptool.org/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">CrypTool</a></li>
+                                                {% elif challenge.category == 'Forensics' %}
+                                                    <li><a href="https://www.sans.org/digital-forensics/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">SANS Digital Forensics</a></li>
+                                                    <li><a href="https://forensicscontest.com/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">Forensics Contest</a></li>
+                                                {% elif challenge.category == 'Reverse Engineering' %}
+                                                    <li><a href="https://beginners.re/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">Reverse Engineering for Beginners</a></li>
+                                                    <li><a href="https://challenges.re/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">Reverse Engineering Challenges</a></li>
+                                                {% elif challenge.category == 'Pwn' or challenge.category == 'Binary' %}
+                                                    <li><a href="https://pwnable.tw/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">Pwnable.tw</a></li>
+                                                    <li><a href="https://exploit.education/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">Exploit Education</a></li>
+                                                {% elif challenge.category == 'OSINT' %}
+                                                    <li><a href="https://osintframework.com/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">OSINT Framework</a></li>
+                                                    <li><a href="https://www.bellingcat.com/resources/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">Bellingcat's OSINT Resources</a></li>
+                                                {% elif challenge.category == 'Mobile' %}
+                                                    <li><a href="https://mobile-security.gitbook.io/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">Mobile Security Testing Guide</a></li>
+                                                    <li><a href="https://github.com/OWASP/owasp-mstg" target="_blank" class="btn btn-outline-primary btn-sm mb-2">OWASP Mobile Security Testing Guide</a></li>
+                                                {% else %}
+                                                    <li><a href="https://tryhackme.com/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">TryHackMe</a></li>
+                                                    <li><a href="https://www.hackthebox.com/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">HackTheBox</a></li>
+                                                {% endif %}
+                                                <li><a href="https://ctftime.org/" target="_blank" class="btn btn-outline-primary btn-sm mb-2">CTFtime - Find more CTF competitions</a></li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                    {% else %}
+                    <!-- Flag Submission -->
+                    <div class="flag-submission mb-4">
+                        <h5 class="text-warning fw-bold"><i class="fas fa-flag me-2"></i>Submit Flag</h5>
+                        <div class="card border-warning shadow-sm">
+                            <div class="card-body p-3">
+                                <form id="flagForm" class="mb-2">
+                                    <div class="input-group input-group-lg">
+                                        <span class="input-group-text bg-light"><i class="fas fa-key"></i></span>
+                                        <input type="text" class="form-control" id="flagInput" 
+                                               placeholder="Enter flag (format: flag{...})" required>
+                                        <button class="btn btn-warning fw-bold" type="submit">
+                                            <i class="fas fa-paper-plane me-2"></i>Submit
+                                        </button>
+                                    </div>
+                                    <div class="form-text text-muted mt-2">
+                                        <i class="fas fa-info-circle me-1"></i> Flags are usually in the format: flag{...} or CTF{...}
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
 
                     <!-- Hints -->
                     {% if hints %}
                     <div class="hints-section mb-4">
-                        <h5>Hints</h5>
-                        <div class="hints-list">
-                            {% for hint in hints %}
-                            <div class="hint-item mb-2">
-                                {% if hint.id in revealed_hints %}
-                                <div class="hint-content">
-                                    <i class="fas fa-lightbulb text-warning me-2"></i>
-                                    <span>{{ hint.content }}</span>
+                        <h5 class="text-info fw-bold"><i class="fas fa-lightbulb me-2"></i>Hints</h5>
+                        <div class="card border-info shadow-sm">
+                            <div class="card-body p-3">
+                                <div class="hints-list">
+                                    {% for hint in hints %}
+                                    <div class="hint-item mb-3 p-3 rounded{% if hint.id in revealed_hints %} bg-info bg-opacity-10{% else %} bg-light{% endif %}">
+                                        {% if hint.id in revealed_hints %}
+                                        <div class="hint-content">
+                                            <div class="d-flex align-items-center mb-2">
+                                                <i class="fas fa-lightbulb text-info me-2 fs-5"></i>
+                                                <h6 class="mb-0 fw-bold">Hint {{ hint.display_order }}</h6>
+                                            </div>
+                                            <div class="ps-4 border-start border-info">
+                                                {{ hint.content }}
+                                            </div>
+                                        </div>
+                                        {% else %}
+                                        <div class="hint-locked d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="fas fa-lock text-secondary me-2"></i>
+                                                <span class="fw-semibold">Hint {{ hint.display_order }}</span>
+                                            </div>
+                                            <button class="btn btn-info" 
+                                                    onclick="purchaseHint({{ hint.id }})">
+                                                <i class="fas fa-unlock me-2"></i>Reveal ({{ hint.cost }} pts)
+                                            </button>
+                                        </div>
+                                        {% endif %}
+                                    </div>
+                                    {% endfor %}
                                 </div>
-                                {% else %}
-                                <div class="hint-locked">
-                                    <i class="fas fa-lock text-muted me-2"></i>
-                                    <span class="text-muted">Hint {{ hint.display_order }}</span>
-                                    <button class="btn btn-sm btn-outline-warning ms-2" 
-                                            onclick="purchaseHint({{ hint.id }})">
-                                        <i class="fas fa-unlock me-1"></i>Reveal ({{ hint.cost }} pts)
-                                    </button>
-                                </div>
-                                {% endif %}
                             </div>
-                            {% endfor %}
                         </div>
                     </div>
                     {% endif %}
 
                     <!-- Recent Submissions -->
                     {% if recent_submissions %}
-                    <div class="submissions-section">
-                        <h5>Recent Submissions</h5>
-                        <div class="submissions-list">
-                            {% for submission in recent_submissions %}
-                            <div class="submission-item mb-2">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <span class="submission-flag">{{ submission.flag[:10] }}...</span>
-                                    <span class="badge bg-{{ 'success' if submission.is_correct else 'danger' }}">
-                                        {{ 'Correct' if submission.is_correct else 'Incorrect' }}
-                                    </span>
-                                    <small class="text-muted">{{ submission.submitted_at.strftime('%H:%M') }}</small>
+                    <div class="submissions-section mb-4">
+                        <h5 class="text-secondary fw-bold"><i class="fas fa-history me-2"></i>Recent Submissions</h5>
+                        <div class="card border-secondary shadow-sm">
+                            <div class="card-body p-3">
+                                <div class="submissions-list">
+                                    {% for submission in recent_submissions %}
+                                    <div class="submission-item mb-2 p-2 rounded bg-light">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <div>
+                                                <i class="fas fa-{{ 'check-circle text-success' if submission.is_correct else 'times-circle text-danger' }} me-2"></i>
+                                                <span class="submission-flag font-monospace">{{ submission.submitted_flag[:10] }}...</span>
+                                            </div>
+                                            <div>
+                                                <span class="badge bg-{{ 'success' if submission.is_correct else 'danger' }} me-2">
+                                                    {{ 'Correct' if submission.is_correct else 'Incorrect' }}
+                                                </span>
+                                                <small class="text-muted"><i class="fas fa-clock me-1"></i>{{ submission.submitted_at.strftime('%H:%M') }}</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
                                 </div>
                             </div>
-                            {% endfor %}
                         </div>
                     </div>
                     {% endif %}
@@ -106,99 +226,101 @@
             </div>
         </div>
 
-        <!-- Chat Sidebar -->
+        
+        <!-- Challenge Details Sidebar -->
         <div class="col-lg-4">
-            <div class="card shadow-sm">
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="mb-0">
+                        <i class="fas fa-info-circle me-2"></i>
+                        Challenge Details
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <ul class="list-group list-group-flush">
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-tag me-2"></i>Category:</span>
+                            <span class="badge bg-secondary">{{ challenge.category }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-signal me-2"></i>Difficulty:</span>
+                            <span class="badge bg-{{ 'success' if challenge.difficulty == 'easy' else 'warning' if challenge.difficulty == 'medium' else 'danger' }}">{{ challenge.difficulty|capitalize }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-star me-2"></i>Points:</span>
+                            <span class="badge bg-primary">{{ challenge.points }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-trophy me-2"></i>Solves:</span>
+                            <span class="badge bg-info">{{ challenge.solves|length }}</span>
+                        </li>
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <span><i class="fas fa-calendar-alt me-2"></i>Added:</span>
+                            <span class="text-muted">{{ challenge.created_at.strftime('%Y-%m-%d') }}</span>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+            
+            <!-- Top Solvers Card -->
+            <div class="card shadow-sm mb-4">
                 <div class="card-header bg-success text-white">
                     <h5 class="mb-0">
-                        <i class="fas fa-comments me-2"></i>
-                        Challenge Chat
+                        <i class="fas fa-trophy me-2"></i>
+                        Top Solvers
                     </h5>
                 </div>
                 <div class="card-body p-0">
-                    <div class="chat-container-challenge">
-                        <!-- Chat Tabs -->
-                        <div class="chat-tabs-challenge">
-                            <button class="tab-btn-challenge active" data-tab="general">
-                                <i class="fas fa-globe"></i> General
-                            </button>
-                            {% if user_team %}
-                            <button class="tab-btn-challenge" data-tab="team">
-                                <i class="fas fa-users"></i> Team
-                            </button>
-                            {% endif %}
-                            <button class="tab-btn-challenge" data-tab="friends">
-                                <i class="fas fa-user-friends"></i> Friends
-                            </button>
-                        </div>
-
-                        <!-- Chat Rooms -->
-                        <div class="chat-rooms-challenge">
-                            <!-- General Chat -->
-                            <div class="chat-room-challenge active" id="general-chat-challenge">
-                                <div class="messages-container-challenge" id="general-messages-challenge"></div>
-                                <div class="message-input-challenge">
-                                    <input type="text" id="general-input-challenge" placeholder="Type your message...">
-                                    <button id="general-send-challenge"><i class="fas fa-paper-plane"></i></button>
-                                </div>
+                    <ul class="list-group list-group-flush">
+                        {% for solve in challenge.solves[:5] %}
+                        <li class="list-group-item d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center">
+                                <span class="badge bg-secondary me-2">{{ loop.index }}</span>
+                                <span>{{ solve.user.username }}</span>
                             </div>
-
-                            <!-- Team Chat -->
-                            {% if user_team %}
-                            <div class="chat-room-challenge" id="team-chat-challenge">
-                                <div class="messages-container-challenge" id="team-messages-challenge"></div>
-                                <div class="message-input-challenge">
-                                    <input type="text" id="team-input-challenge" placeholder="Type your message...">
-                                    <button id="team-send-challenge"><i class="fas fa-paper-plane"></i></button>
-                                </div>
-                            </div>
-                            {% endif %}
-
-                            <!-- Friends Chat -->
-                            <div class="chat-room-challenge" id="friends-chat-challenge">
-                                <div class="friends-list-challenge">
-                                    {% for friend in friends %}
-                                    <div class="friend-item-challenge" onclick="openPrivateChatChallenge({{ friend.id }}, '{{ friend.username }}')">
-                                        <div class="friend-pic-challenge">
-                                            {% if friend.profile_picture %}
-                                                <img src="{{ url_for('profile_picture', filename=friend.profile_picture) }}" alt="{{ friend.username }}">
-                                            {% else %}
-                                                <img src="{{ url_for('static', filename='images/default-avatar.svg') }}" alt="{{ friend.username }}">
-                                            {% endif %}
-                                            <span class="online-status-challenge {% if friend.is_online %}online{% else %}offline{% endif %}"></span>
-                                        </div>
-                                        <div class="friend-info-challenge">
-                                            <h6>{{ friend.username }}</h6>
-                                            <small class="status">
-                                                {% if friend.is_online %}
-                                                    Online
-                                                {% else %}
-                                                    Offline
-                                                {% endif %}
-                                            </small>
-                                        </div>
-                                    </div>
-                                    {% endfor %}
-                                    
-                                    {% if not friends %}
-                                    <div class="no-friends-challenge">
-                                        <i class="fas fa-user-plus"></i>
-                                        <p>No friends yet</p>
-                                        <a href="/friends" class="btn btn-sm btn-primary">Add Friends</a>
-                                    </div>
-                                    {% endif %}
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+                            <small class="text-muted">{{ solve.solved_at.strftime('%Y-%m-%d %H:%M') }}</small>
+                        </li>
+                        {% else %}
+                        <li class="list-group-item text-center text-muted">
+                            <i class="fas fa-ghost me-2"></i>No solves yet. Be the first!
+                        </li>
+                        {% endfor %}
+                    </ul>
+                </div>
+            </div>
+            <div class="card shadow-sm mb-4">
+                <div class="card-body d-flex justify-content-between">
+                    {% if prev_challenge %}
+                    <a href="{{ url_for('challenge_detail', challenge_id=prev_challenge.id) }}" class="btn btn-outline-primary">
+                        <i class="fas fa-arrow-left"></i> Previous
+                    </a>
+                    {% else %}
+                    <span></span>
+                    {% endif %}
+                    {% if next_challenge %}
+                    <a href="{{ url_for('challenge_detail', challenge_id=next_challenge.id) }}" class="btn btn-primary">
+                        Next <i class="fas fa-arrow-right"></i>
+                    </a>
+                    {% endif %}
                 </div>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Private Chat Windows -->
-<div class="private-chats-challenge" id="private-chats-challenge"></div>
+<!-- Challenge-specific JavaScript -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Flag submission handling
+        const flagForm = document.getElementById('flagForm');
+        if (flagForm) {
+            flagForm.addEventListener('submit', function(e) {
+                e.preventDefault();
+                submitFlag();
+            });
+        }
+    });
+</script>
 {% endblock %}
 
 {% block extra_css %}
@@ -234,6 +356,97 @@
 .submission-flag {
     font-family: monospace;
     color: #6c757d;
+}
+
+/* Solution Section Styles */
+.solution-section {
+    margin-top: 1.5rem;
+}
+
+.solution-section .card {
+    border: none;
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
+}
+
+.solution-section .card-header {
+    background-color: #f8f9fa;
+    border-bottom: none;
+    padding: 0.75rem 1rem 0;
+}
+
+.solution-section .nav-tabs .nav-link {
+    color: #495057;
+    border: none;
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    font-weight: 500;
+    border-radius: 0;
+}
+
+.solution-section .nav-tabs .nav-link.active {
+    color: #007bff;
+    background-color: transparent;
+    border-bottom: 2px solid #007bff;
+}
+
+.solution-section .tab-content {
+    padding: 1rem 0;
+}
+
+.explanation-content, .solution-steps {
+    line-height: 1.6;
+    color: #343a40;
+}
+
+.explanation-content h1, .explanation-content h2, .explanation-content h3,
+.solution-steps h1, .solution-steps h2, .solution-steps h3 {
+    font-size: 1.25rem;
+    margin-top: 1.5rem;
+    margin-bottom: 0.75rem;
+    color: #212529;
+}
+
+.explanation-content pre, .solution-steps pre {
+    background-color: #f8f9fa;
+    padding: 1rem;
+    border-radius: 0.25rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+}
+
+.explanation-content code, .solution-steps code {
+    background-color: #f8f9fa;
+    padding: 0.2rem 0.4rem;
+    border-radius: 0.2rem;
+    font-size: 0.875rem;
+    color: #e83e8c;
+}
+
+.resource-links {
+    list-style-type: none;
+    padding-left: 0;
+}
+
+.resource-links li {
+    margin-bottom: 0.75rem;
+}
+
+.resource-links a {
+    display: inline-block;
+    color: #007bff;
+    text-decoration: none;
+    padding: 0.5rem 0.75rem;
+    background-color: #f8f9fa;
+    border-radius: 0.25rem;
+    transition: all 0.2s ease;
+    font-size: 0.9rem;
+}
+
+.resource-links a:hover {
+    background-color: #e9ecef;
+    color: #0056b3;
+    transform: translateY(-2px);
+    box-shadow: 0 0.125rem 0.25rem rgba(0, 0, 0, 0.075);
 }
 
 /* Challenge Chat Styles */
@@ -513,7 +726,7 @@
 </style>
 {% endblock %}
 
-{% block scripts %}
+{% block extra_js %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.6.1/socket.io.js"></script>
 <script>
 let socket;
@@ -818,13 +1031,14 @@ function scrollToBottom(container) {
     container.scrollTop = container.scrollHeight;
 }
 
-// Flag submission
-document.getElementById('flagForm').addEventListener('submit', function(e) {
-    e.preventDefault();
-    
+// Flag submission helper
+function submitFlag() {
     const flag = document.getElementById('flagInput').value.trim();
-    if (!flag) return;
-    
+    if (!flag) {
+        showAlert('danger', 'Please enter a flag');
+        return;
+    }
+
     fetch('/submit_flag', {
         method: 'POST',
         headers: {
@@ -840,8 +1054,7 @@ document.getElementById('flagForm').addEventListener('submit', function(e) {
         if (result.success) {
             showAlert('success', 'Flag submitted successfully!');
             document.getElementById('flagInput').value = '';
-            // Reload page to update solve status
-            setTimeout(() => location.reload(), 1500);
+            setTimeout(() => location.reload(), 1200);
         } else {
             showAlert('danger', result.message || 'Incorrect flag');
         }
@@ -850,7 +1063,7 @@ document.getElementById('flagForm').addEventListener('submit', function(e) {
         console.error('Error:', error);
         showAlert('danger', 'Error submitting flag');
     });
-});
+}
 
 function purchaseHint(hintId) {
     if (!confirm('Are you sure you want to purchase this hint?')) {

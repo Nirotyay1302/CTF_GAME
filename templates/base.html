@@ -438,112 +438,74 @@
         {% block content %}{% endblock %}
     </main>
 
-    <!-- Enhanced Footer -->
-    <footer class="enhanced-footer">
-        <div class="container">
-            <div class="row">
-                <!-- Brand Section -->
-                <div class="col-lg-4 col-md-6 mb-4">
+    <!-- Global Footer -->
+    <footer class="site-footer" style="background: linear-gradient(135deg, rgba(15,23,42,1), rgba(30,41,59,0.95)); border-top: 1px solid var(--dark-border);">
+        <style>
+            .site-footer .footer-col-title { color: var(--text-light); font-weight: 700; margin-bottom: 0.75rem; }
+            .site-footer .footer-link { color: var(--text-muted); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; padding: 6px 0; }
+            .site-footer .footer-link:hover { color: var(--text-light); transform: translateX(2px); }
+            .site-footer .footer-brand { color: var(--text-light); }
+            .site-footer .footer-brand p { color: var(--text-muted); }
+            .site-footer .footer-divider { border-color: var(--dark-border); opacity: .7; }
+            .site-footer .stat-pill { display: inline-flex; align-items: center; gap: 6px; background: rgba(148,163,184,.12); color: var(--text-light); border: 1px solid var(--dark-border); padding: 6px 10px; border-radius: 999px; font-size: .85rem; margin-right: 8px; margin-bottom: 8px; }
+            /* LinkedIn follow button (provided) */
+            .libutton { display: flex; flex-direction: column; justify-content: center; padding: 7px; text-align: center; outline: none; text-decoration: none !important; color: #ffffff !important; width: 200px; height: 32px; border-radius: 16px; background-color: #0A66C2; font-family: "SF Pro Text", Helvetica, sans-serif; }
+        </style>
+        <div class="container py-5">
+            <div class="row g-4">
+                <div class="col-lg-5">
                     <div class="footer-brand">
-                        <h4 class="footer-title">
+                        <h4 class="mb-2">
                             <i class="fas fa-shield-alt text-primary"></i>
                             HUNTING-CTF
                         </h4>
-                        <p class="footer-description">
-                            A comprehensive Capture The Flag platform designed for cybersecurity education,
-                            training, and competitive hacking challenges.
-                        </p>
-                        <div class="footer-stats">
-                            <div class="stat-item">
-                                <i class="fas fa-users"></i>
-                                <span>Active Community</span>
-                            </div>
-                            <div class="stat-item">
-                                <i class="fas fa-puzzle-piece"></i>
-                                <span>45+ Challenges</span>
-                            </div>
-                            <div class="stat-item">
-                                <i class="fas fa-trophy"></i>
-                                <span>Competitive Learning</span>
-                            </div>
+                        <p class="mb-3">Modern Capture The Flag platform for training, competitions, and fun. Learn, compete, and level up your cyber skills.</p>
+                        <div class="d-flex flex-wrap">
+                            <span class="stat-pill"><i class="fas fa-users"></i> Community</span>
+                            <span class="stat-pill"><i class="fas fa-puzzle-piece"></i> 45+ Challenges</span>
+                            <span class="stat-pill"><i class="fas fa-trophy"></i> Leaderboards</span>
                         </div>
                     </div>
                 </div>
-
-                <!-- Quick Links -->
-                <div class="col-lg-2 col-md-6 mb-4">
-                    <h5 class="footer-heading">Platform</h5>
-                    <ul class="footer-links">
-                        <li><a href="{{ url_for('index') }}"><i class="fas fa-home"></i> Home</a></li>
-                        <li><a href="{{ url_for('challenges') }}"><i class="fas fa-puzzle-piece"></i> Challenges</a>
-                        </li>
-                        <li><a href="{{ url_for('scoreboard') }}"><i class="fas fa-trophy"></i> Scoreboard</a></li>
-                        {% if current_user %}
-                        <li><a href="{{ url_for('dashboard') }}"><i class="fas fa-tachometer-alt"></i> Dashboard</a>
-                        </li>
-                        {% endif %}
-                    </ul>
-                </div>
-
-                <!-- Categories -->
-                <div class="col-lg-2 col-md-6 mb-4">
-                    <h5 class="footer-heading">Categories</h5>
-                    <ul class="footer-links">
-                        <li><a href="{{ url_for('challenges', category='web') }}"><i class="fas fa-globe"></i> Web
-                                Security</a></li>
-                        <li><a href="{{ url_for('challenges', category='crypto') }}"><i class="fas fa-key"></i>
-                                Cryptography</a></li>
-                        <li><a href="{{ url_for('challenges', category='forensics') }}"><i class="fas fa-search"></i>
-                                Forensics</a></li>
-                        <li><a href="{{ url_for('challenges', category='reverse') }}"><i class="fas fa-cogs"></i>
-                                Reverse Eng.</a></li>
-                        <li><a href="{{ url_for('challenges', category='pwn') }}"><i class="fas fa-bug"></i>
-                                Exploitation</a></li>
-                    </ul>
-                </div>
-
-
-
-                <!-- Contact & Social -->
-                <div class="col-lg-3 col-md-6 mb-4">
-                    <h5 class="footer-heading">Connect</h5>
-                    <div class="social-links">
-                        <a href="https://github.com/Nirotyay1302" class="social-link" title="GitHub">
-                            <i class="fab fa-github"></i>
-                        </a>
-                        
-                        <a href="https://www.linkedin.com/in/nirotyay-mukherjee-560632230" class="social-link" title="LinkedIn">
-                            <i class="fab fa-linkedin"></i>
-                        </a>
+                <div class="col-6 col-lg-2">
+                    <div class="footer-col">
+                        <div class="footer-col-title">Platform</div>
+                        <div class="d-flex flex-column">
+                            <a class="footer-link" href="{{ url_for('index') }}"><i class="fas fa-home"></i> Home</a>
+                            <a class="footer-link" href="{{ url_for('challenges') }}"><i class="fas fa-puzzle-piece"></i> Challenges</a>
+                            <a class="footer-link" href="{{ url_for('scoreboard') }}"><i class="fas fa-trophy"></i> Scoreboard</a>
+                            {% if current_user %}
+                            <a class="footer-link" href="{{ url_for('dashboard') }}"><i class="fas fa-gauge"></i> Dashboard</a>
+                            {% endif %}
+                        </div>
                     </div>
-                    <div class="contact-info">
-                        <p><i class="fas fa-envelope"></i> nirotyaymukherjee563@gmail.com</p>
-                        <p><i class="fas fa-globe"></i> www.hunting-ctf.com</p>
+                </div>
+                <div class="col-6 col-lg-2">
+                    <div class="footer-col">
+                        <div class="footer-col-title">Categories</div>
+                        <div class="d-flex flex-column">
+                            <a class="footer-link" href="{{ url_for('challenges', category='web') }}"><i class="fas fa-globe"></i> Web</a>
+                            <a class="footer-link" href="{{ url_for('challenges', category='crypto') }}"><i class="fas fa-key"></i> Crypto</a>
+                            <a class="footer-link" href="{{ url_for('challenges', category='forensics') }}"><i class="fas fa-search"></i> Forensics</a>
+                            <a class="footer-link" href="{{ url_for('challenges', category='reverse') }}"><i class="fas fa-rotate-left"></i> Reverse</a>
+                            <a class="footer-link" href="{{ url_for('challenges', category='pwn') }}"><i class="fas fa-bug"></i> Pwn</a>
+                        </div>
                     </div>
-                
+                </div>
+                <div class="col-lg-3">
+                    <div class="footer-col">
+                        <div class="footer-col-title">Admin</div>
+                        <div class="mb-3" style="color: var(--text-muted);"><i class="fas fa-envelope"></i> nirotyaymukherjee563@gmail.com</div>
+                        <a class="libutton" href="https://www.linkedin.com/comm/mynetwork/discovery-see-all?usecase=PEOPLE_FOLLOWS&followMember=nirotyay-mukherjee-560632230" target="_blank">Follow on LinkedIn</a>
+                    </div>
+                </div>
             </div>
-
-            <!-- Footer Bottom -->
-            <div class="footer-bottom">
-                <div class="row align-items-center">
-                    <div class="col-md-6">
-                        <p class="copyright">
-                            &copy; 2025 HUNTING-CTF. All rights reserved.
-
-                        </p>
-                    </div>
-                    <div class="col-md-6 text-md-end">
-                        <div class="footer-meta">
-                            <div class="version-info">
-                                <i class="fas fa-code-branch"></i>
-                                <span>v2.0.0</span>
-                            </div>
-                            <div class="server-status">
-                                <i class="fas fa-circle text-success"></i>
-                                <span>Server Online</span>
-                            </div>
-                        </div>
-                    </div>
+            <hr class="footer-divider my-4" />
+            <div class="d-flex flex-column flex-md-row justify-content-between align-items-center gap-2">
+                <div class="text-muted">&copy; 2025 HUNTING-CTF. All rights reserved.</div>
+                <div class="d-flex align-items-center gap-3">
+                    <span class="text-muted"><i class="fas fa-code-branch"></i> v2.0.0</span>
+                    <span class="text-success"><i class="fas fa-circle"></i> Server Online</span>
                 </div>
             </div>
         </div>
@@ -551,6 +513,23 @@
 
     <!-- Bootstrap JS -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+      (function() {
+        try {
+          const path = window.location.pathname;
+          // Auto-refresh scoreboard pages (robust path check and focus refresh)
+          const isScoreboard = (path === '/scoreboard') || (path === '/scoreboard/teams') || path.startsWith('/scoreboard');
+          if (isScoreboard) {
+            setInterval(function(){ window.location.reload(); }, 15000);
+            document.addEventListener('visibilitychange', function() {
+              if (document.visibilityState === 'visible') {
+                setTimeout(function(){ window.location.reload(); }, 500);
+              }
+            });
+          }
+        } catch (e) {}
+      })();
+    </script>
 
 
 

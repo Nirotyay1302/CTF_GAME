@@ -1,6 +1,6 @@
 {% extends "admin/base.html" %}
 
-{% block title %}Admin Dashboard - HUNTING-CTF{% endblock %}
+{% block title %}Administrator Control Panel - HUNTING-CTF{% endblock %}
 
 {% block extra_css %}
 <style>
@@ -343,87 +343,62 @@
 {% endblock %}
 
 {% block content %}
-<!-- Admin Dashboard Header -->
-<div class="admin-header">
-    <div class="admin-header-content">
-        <div class="admin-title">
-            <h1><i class="fas fa-tachometer-alt"></i> Admin Dashboard</h1>
-            <p>Complete control center for your CTF platform</p>
-        </div>
-        <div class="admin-actions">
-            <a href="{{ url_for('admin_challenges') }}" class="btn btn-primary">
-                <i class="fas fa-plus"></i> Add Challenge
-            </a>
-            <a href="{{ url_for('admin_users') }}" class="btn btn-success">
-                <i class="fas fa-users"></i> Manage Users
-            </a>
-        </div>
+<div class="container-fluid py-4">
+    <div class="admin-header">
+        <h1><i class="fas fa-shield-alt"></i> Administrator Dashboard</h1>
+        <p>Welcome to the HUNTING-CTF administrator control panel. This interface is for administrators only.</p>
     </div>
-</div>
+    
+    <div class="admin-notice">
+        <h3><i class="fas fa-exclamation-triangle"></i> Administrator Notice</h3>
+        <p>This account has administrative privileges and is intended for platform management only. It is not a player account and should not be used to participate in challenges or competitions.</p>
+        <p>As an administrator, you have full control over the CTF platform. Use these tools responsibly.</p>
+    </div>
 
 <!-- Statistics Overview -->
-<div class="stats-grid">
-    <div class="stat-card primary">
-        <div class="stat-icon">
-            <i class="fas fa-users"></i>
-        </div>
+<div class="admin-stats">
+    <div class="admin-stat-card primary">
+        <div class="stat-icon"><i class="fas fa-users"></i></div>
         <div class="stat-content">
             <div class="stat-number">{{ total_users }}</div>
-            <div class="stat-label">Total Users</div>
-        </div>
-        <div class="stat-trend">
-            <i class="fas fa-arrow-up"></i>
+            <div class="stat-label">TOTAL USERS</div>
         </div>
     </div>
     
-    <div class="stat-card success">
-        <div class="stat-icon">
-            <i class="fas fa-puzzle-piece"></i>
-        </div>
+    <div class="admin-stat-card success">
+        <div class="stat-icon"><i class="fas fa-puzzle-piece"></i></div>
         <div class="stat-content">
             <div class="stat-number">{{ total_challenges }}</div>
-            <div class="stat-label">Challenges</div>
-        </div>
-        <div class="stat-trend">
-            <i class="fas fa-arrow-up"></i>
+            <div class="stat-label">TOTAL CHALLENGES</div>
         </div>
     </div>
     
-    <div class="stat-card warning">
-        <div class="stat-icon">
-            <i class="fas fa-shield-alt"></i>
-        </div>
+    <div class="admin-stat-card warning">
+        <div class="stat-icon"><i class="fas fa-shield-alt"></i></div>
         <div class="stat-content">
             <div class="stat-number">{{ total_teams }}</div>
-            <div class="stat-label">Active Teams</div>
-        </div>
-        <div class="stat-trend">
-            <i class="fas fa-arrow-up"></i>
+            <div class="stat-label">ACTIVE TEAMS</div>
         </div>
     </div>
     
-    <div class="stat-card danger">
-        <div class="stat-icon">
-            <i class="fas fa-trophy"></i>
-        </div>
+    <div class="admin-stat-card danger">
+        <div class="stat-icon"><i class="fas fa-trophy"></i></div>
         <div class="stat-content">
             <div class="stat-number">{{ total_solves }}</div>
-            <div class="stat-label">Total Solves</div>
-        </div>
-        <div class="stat-trend">
-            <i class="fas fa-arrow-up"></i>
+            <div class="stat-label">TOTAL SOLVES</div>
         </div>
     </div>
 </div>
 
 <!-- Main Content Grid -->
-<div class="admin-grid">
+<div class="row">
     <!-- Recent Activity -->
-    <div class="admin-card">
-        <div class="card-header">
-            <h3><i class="fas fa-clock"></i> Recent Activity</h3>
-        </div>
-        <div class="card-content">
+    <div class="col-md-6 mb-4">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h3><i class="fas fa-clock"></i> Recent Activity</h3>
+            </div>
+            <div class="admin-card-body">
             {% if recent_solves %}
                 <div class="activity-list">
                     {% for solve in recent_solves %}
@@ -449,15 +424,17 @@
                     <p>No recent activity</p>
                 </div>
             {% endif %}
+            </div>
         </div>
     </div>
     
     <!-- Top Performers -->
-    <div class="admin-card">
-        <div class="card-header">
-            <h3><i class="fas fa-star"></i> Top Performers</h3>
-        </div>
-        <div class="card-content">
+    <div class="col-md-6 mb-4">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h3><i class="fas fa-star"></i> Top Performers</h3>
+            </div>
+            <div class="admin-card-body">
             {% if top_users %}
                 <div class="leaderboard-mini">
                     {% for user in top_users %}
@@ -477,15 +454,17 @@
                     <p>No solves yet</p>
                 </div>
             {% endif %}
+            </div>
         </div>
     </div>
     
     <!-- Challenge Categories -->
-    <div class="admin-card">
-        <div class="card-header">
-            <h3><i class="fas fa-layer-group"></i> Challenge Categories</h3>
-        </div>
-        <div class="card-content">
+    <div class="col-md-6 mb-4">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h3><i class="fas fa-layer-group"></i> Challenge Categories</h3>
+            </div>
+            <div class="admin-card-body">
             {% if category_stats %}
                 <div class="category-list">
                     {% for category in category_stats %}
@@ -504,15 +483,17 @@
                     <p>No categories yet</p>
                 </div>
             {% endif %}
+            </div>
         </div>
     </div>
     
     <!-- Team Overview -->
-    <div class="admin-card">
-        <div class="card-header">
-            <h3><i class="fas fa-users"></i> Team Overview</h3>
-        </div>
-        <div class="card-content">
+    <div class="col-md-6 mb-4">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h3><i class="fas fa-users"></i> Team Overview</h3>
+            </div>
+            <div class="admin-card-body">
             {% if team_stats %}
                 <div class="team-list">
                     {% for team in team_stats %}
@@ -533,15 +514,17 @@
                     <p>No teams created</p>
                 </div>
             {% endif %}
+            </div>
         </div>
     </div>
     
     <!-- Recent Users -->
-    <div class="admin-card">
-        <div class="card-header">
-            <h3><i class="fas fa-user-plus"></i> Recent Users</h3>
-        </div>
-        <div class="card-content">
+    <div class="col-md-6 mb-4">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h3><i class="fas fa-user-plus"></i> Recent Users</h3>
+            </div>
+            <div class="admin-card-body">
             {% if recent_users %}
                 <div class="user-list">
                     {% for user in recent_users %}
@@ -565,18 +548,20 @@
                     <p>No recent users</p>
                 </div>
             {% endif %}
+            </div>
         </div>
     </div>
     
     <!-- Quick Actions -->
-    <div class="admin-card">
-        <div class="card-header">
-            <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
-        </div>
-        <div class="card-content">
+    <div class="col-md-12 mb-4">
+        <div class="admin-card">
+            <div class="admin-card-header">
+                <h3><i class="fas fa-bolt"></i> Quick Actions</h3>
+            </div>
+            <div class="admin-card-body">
             <div class="quick-actions">
                 <a href="{{ url_for('admin_challenges') }}" class="quick-action primary">
-                    <i class="fas fa-plus"></i>
+                    <i class="fas fa-flag"></i>
                     <span>Add Challenge</span>
                 </a>
                 <a href="{{ url_for('admin_users') }}" class="quick-action success">
@@ -592,7 +577,6 @@
                     <span>Settings</span>
                 </a>
             </div>
-        </div>
     </div>
 </div>
 {% endblock %}

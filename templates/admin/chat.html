@@ -1,0 +1,288 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Chat Monitoring - Admin Panel{% endblock %}
+
+{% block head %}
+{{ super() }}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/admin_chat.css') }}">
+{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Chat Monitor</li>
+{% endblock %}
+
+{% block content %}
+<!-- Chat Monitor Header -->
+<div class="admin-header">
+    <div class="admin-header-content">
+        <div class="admin-title">
+            <h1><i class="fas fa-comments"></i> Chat Monitoring</h1>
+            <p>Monitor public chat messages</p>
+        </div>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+            <button id="refresh-chat" class="btn btn-success">
+                <i class="fas fa-sync"></i> Refresh Messages
+            </button>
+            <button id="clear-chat" class="btn btn-danger">
+                <i class="fas fa-trash"></i> Clear Chat History
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Chat Statistics -->
+<div class="stats-grid mb-4">
+    <div class="stat-card primary">
+        <div class="stat-icon">
+            <i class="fas fa-comments"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-number" id="total-messages">{{ total_messages }}</div>
+            <div class="stat-label">Total Messages</div>
+        </div>
+    </div>
+    
+    <div class="stat-card success">
+        <div class="stat-icon">
+            <i class="fas fa-users"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-number" id="active-users">{{ active_users }}</div>
+            <div class="stat-label">Active Users</div>
+        </div>
+    </div>
+    
+    <div class="stat-card warning">
+        <div class="stat-icon">
+            <i class="fas fa-clock"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-number" id="today-messages">{{ today_messages }}</div>
+            <div class="stat-label">Today's Messages</div>
+        </div>
+    </div>
+</div>
+
+<!-- Chat Monitor -->
+<div class="admin-card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5><i class="fas fa-comments"></i> Public Chat Messages</h5>
+        <div class="input-group" style="max-width: 300px;">
+            <input type="text" id="message-search" class="form-control" placeholder="Search messages...">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+        </div>
+    </div>
+    <div class="card-content p-0">
+        <div class="chat-monitor-container" id="chat-messages">
+            {% if messages %}
+                {% for message in messages %}
+                <div class="chat-message">
+                    <div class="message-header">
+                        <span class="message-user">{{ message.user.username }}</span>
+                        <span class="message-time">{{ message.created_at.strftime('%Y-%m-%d %H:%M:%S') }}</span>
+                    </div>
+                    <div class="message-content">{{ message.content }}</div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <div class="no-messages-found">
+                    <i class="fas fa-comment-slash"></i>
+                    <p>No messages found</p>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Message Moderation -->
+<div class="admin-card">
+    <div class="card-header">
+        <h5><i class="fas fa-shield-alt"></i> Message Moderation</h5>
+    </div>
+    <div class="card-content">
+        <div class="moderation-tools">
+            <div class="form-group">
+                <label for="banned-words">Banned Words/Phrases</label>
+                <textarea id="banned-words" class="form-control" rows="3" placeholder="Enter words or phrases to ban, one per line">{{ banned_words|join('\n') }}</textarea>
+            </div>
+            <div class="form-check mb-3">
+                <input class="form-check-input" type="checkbox" id="auto-moderate" {% if auto_moderate %}checked{% endif %}>
+                <label class="form-check-label" for="auto-moderate">
+                    Auto-moderate messages containing banned words
+                </label>
+            </div>
+            <button id="save-moderation" class="btn btn-primary">
+                <i class="fas fa-save"></i> Save Moderation Settings
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Chat Monitoring -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Refresh chat messages
+        document.getElementById('refresh-chat').addEventListener('click', function() {
+            fetch('/api/admin/chat/messages')
+                .then(response => response.json())
+                .then(data => {
+                    const chatContainer = document.getElementById('chat-messages');
+                    chatContainer.innerHTML = '';
+                    
+                    if (data.messages && data.messages.length > 0) {
+                        data.messages.forEach(message => {
+                            const messageEl = document.createElement('div');
+                            messageEl.className = 'chat-message';
+                            messageEl.innerHTML = `
+                                <div class="message-header">
+                                    <span class="message-user">${message.username}</span>
+                                    <span class="message-time">${message.created_at}</span>
+                                </div>
+                                <div class="message-content">${message.content}</div>
+                            `;
+                            chatContainer.appendChild(messageEl);
+                        });
+                    } else {
+                        chatContainer.innerHTML = `
+                            <div class="no-messages-found">
+                                <i class="fas fa-comment-slash"></i>
+                                <p>No messages found</p>
+                            </div>
+                        `;
+                    }
+                    
+                    // Update stats
+                    document.getElementById('total-messages').textContent = data.total_messages;
+                    document.getElementById('active-users').textContent = data.active_users;
+                    document.getElementById('today-messages').textContent = data.today_messages;
+                })
+                .catch(error => console.error('Error fetching chat messages:', error));
+        });
+        
+        // Clear chat history
+        document.getElementById('clear-chat').addEventListener('click', function() {
+            if (confirm('Are you sure you want to clear all chat history? This action cannot be undone.')) {
+                fetch('/api/chat/clear', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        alert('Chat history cleared successfully!');
+                        document.getElementById('refresh-chat').click();
+                    } else {
+                        alert('Failed to clear chat history: ' + data.message);
+                    }
+                })
+                .catch(error => console.error('Error clearing chat history:', error));
+            }
+        });
+        
+        // Save moderation settings
+        document.getElementById('save-moderation').addEventListener('click', function() {
+            const bannedWords = document.getElementById('banned-words').value.split('\n').filter(word => word.trim() !== '');
+            const autoModerate = document.getElementById('auto-moderate').checked;
+            
+            fetch('/api/admin/chat/moderation', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    banned_words: bannedWords,
+                    auto_moderate: autoModerate
+                })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert('Moderation settings saved successfully!');
+                } else {
+                    alert('Failed to save moderation settings: ' + data.message);
+                }
+            })
+            .catch(error => console.error('Error saving moderation settings:', error));
+        });
+        
+        // Search messages
+        document.getElementById('message-search').addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            const messages = document.querySelectorAll('.chat-message');
+            
+            messages.forEach(message => {
+                const content = message.querySelector('.message-content').textContent.toLowerCase();
+                const username = message.querySelector('.message-user').textContent.toLowerCase();
+                
+                if (content.includes(searchTerm) || username.includes(searchTerm)) {
+                    message.style.display = '';
+                } else {
+                    message.style.display = 'none';
+                }
+            });
+        });
+    });
+</script>
+
+<style>
+    .chat-monitor-container {
+        max-height: 500px;
+        overflow-y: auto;
+        padding: 0;
+    }
+    
+    .chat-message {
+        padding: 12px 15px;
+        border-bottom: 1px solid #eee;
+    }
+    
+    .chat-message:last-child {
+        border-bottom: none;
+    }
+    
+    .message-header {
+        display: flex;
+        justify-content: space-between;
+        margin-bottom: 5px;
+    }
+    
+    .message-user {
+        font-weight: bold;
+        color: #2563eb;
+    }
+    
+    .message-time {
+        font-size: 0.8rem;
+        color: #6b7280;
+    }
+    
+    .message-content {
+        word-break: break-word;
+    }
+    
+    .no-messages-found {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        padding: 50px 0;
+        color: #6b7280;
+    }
+    
+    .no-messages-found i {
+        font-size: 3rem;
+        margin-bottom: 15px;
+    }
+    
+    .moderation-tools {
+        padding: 15px;
+    }
+</style>
+
+<script src="{{ url_for('static', filename='js/admin_chat.js') }}"></script>
+{% endblock %}

@@ -1215,31 +1215,31 @@
         <section class="challenges-grid fade-in-up" id="challengesGrid">
             {% if challenges %}
                 {% for challenge in challenges %}
-                <div class="challenge-card {{ challenge.category }} fade-in-up"
-                     data-category="{{ challenge.category }}"
-                     data-difficulty="{{ challenge.difficulty }}"
+                <div class="challenge-card {{ challenge.category|lower }} fade-in-up"
+                     data-category="{{ challenge.category|lower }}"
+                     data-difficulty="{{ challenge.difficulty|lower }}"
                      data-solved="{{ 'true' if challenge.id in solved_ids else 'false' }}">
 
                     <div class="challenge-header">
                         <div>
                             <h3 class="challenge-title">{{ challenge.title }}</h3>
                             <div class="challenge-badges">
-                                <span class="badge category {{ challenge.category }}">
-                                    {% if challenge.category == 'web' %}<i class="fas fa-globe"></i>{% endif %}
-                                    {% if challenge.category == 'crypto' %}<i class="fas fa-lock"></i>{% endif %}
-                                    {% if challenge.category == 'pwn' %}<i class="fas fa-bug"></i>{% endif %}
-                                    {% if challenge.category == 'reverse' %}<i class="fas fa-undo"></i>{% endif %}
-                                    {% if challenge.category == 'forensics' %}<i class="fas fa-search"></i>{% endif %}
-                                    {% if challenge.category == 'misc' %}<i class="fas fa-puzzle-piece"></i>{% endif %}
-                                    {% if challenge.category == 'osint' %}<i class="fas fa-eye"></i>{% endif %}
-                                    {% if challenge.category == 'steganography' %}<i class="fas fa-image"></i>{% endif %}
-                                    {{ challenge.category.title() }}
+                                <span class="badge category {{ challenge.category|lower }}">
+                                    {% if challenge.category|lower == 'web' %}<i class="fas fa-globe"></i>{% endif %}
+                                    {% if challenge.category|lower == 'crypto' %}<i class="fas fa-lock"></i>{% endif %}
+                                    {% if challenge.category|lower == 'pwn' %}<i class="fas fa-bug"></i>{% endif %}
+                                    {% if challenge.category|lower == 'reverse' %}<i class="fas fa-undo"></i>{% endif %}
+                                    {% if challenge.category|lower == 'forensics' %}<i class="fas fa-search"></i>{% endif %}
+                                    {% if challenge.category|lower == 'misc' %}<i class="fas fa-puzzle-piece"></i>{% endif %}
+                                    {% if challenge.category|lower == 'osint' %}<i class="fas fa-eye"></i>{% endif %}
+                                    {% if challenge.category|lower == 'steganography' %}<i class="fas fa-image"></i>{% endif %}
+                                    {{ challenge.category.title() if challenge.category else 'Misc' }}
                                 </span>
-                                <span class="badge difficulty {{ challenge.difficulty }}">
-                                    {% if challenge.difficulty == 'easy' %}<i class="fas fa-star"></i>{% endif %}
-                                    {% if challenge.difficulty == 'medium' %}<i class="fas fa-star-half-alt"></i>{% endif %}
-                                    {% if challenge.difficulty == 'hard' %}<i class="fas fa-fire"></i>{% endif %}
-                                    {% if challenge.difficulty == 'expert' %}<i class="fas fa-crown"></i>{% endif %}
+                                <span class="badge difficulty {{ challenge.difficulty|lower }}">
+                                    {% if challenge.difficulty|lower == 'easy' %}<i class="fas fa-star"></i>{% endif %}
+                                    {% if challenge.difficulty|lower == 'medium' %}<i class="fas fa-star-half-alt"></i>{% endif %}
+                                    {% if challenge.difficulty|lower == 'hard' %}<i class="fas fa-fire"></i>{% endif %}
+                                    {% if challenge.difficulty|lower == 'expert' %}<i class="fas fa-crown"></i>{% endif %}
                                     {{ challenge.difficulty.title() }}
                                 </span>
                                 {% if challenge.id in solved_ids %}

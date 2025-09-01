@@ -424,6 +424,32 @@
     </a>
 </div>
 
+<!-- Filters -->
+<div class="filters-bar" style="background: rgba(30,41,59,.6); border: 1px solid var(--dark-border); border-radius: 12px; padding: 1rem; margin-bottom: 1rem;">
+    <form class="row g-2 align-items-center" id="teamFiltersForm" method="get" action="{{ url_for('team_scoreboard') }}">
+        <div class="col-auto">
+            <select class="form-select" name="time" onchange="document.getElementById('teamFiltersForm').submit()" style="background: rgba(30,41,59,.8); color: var(--text-light); border: 1px solid var(--dark-border);">
+                <option value="all" {% if request.args.get('time','all') == 'all' %}selected{% endif %}>All Time</option>
+                <option value="day" {% if request.args.get('time') == 'day' %}selected{% endif %}>Last 24 Hours</option>
+                <option value="week" {% if request.args.get('time') == 'week' %}selected{% endif %}>Last Week</option>
+                <option value="month" {% if request.args.get('time') == 'month' %}selected{% endif %}>Last Month</option>
+            </select>
+        </div>
+        <div class="col-auto">
+            <select class="form-select" name="category" onchange="document.getElementById('teamFiltersForm').submit()" style="background: rgba(30,41,59,.8); color: var(--text-light); border: 1px solid var(--dark-border);">
+                <option value="all" {% if request.args.get('category','all') == 'all' %}selected{% endif %}>All Categories</option>
+                {% set cats = ['web','crypto','pwn','reverse','forensics','misc','osint','steganography'] %}
+                {% for c in cats %}
+                <option value="{{ c }}" {% if request.args.get('category') == c %}selected{% endif %}>{{ c.title() }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-auto">
+            <button class="btn btn-outline-primary" type="submit"><i class="fas fa-filter me-1"></i>Apply</button>
+        </div>
+    </form>
+</div>
+
 <!-- Team Statistics -->
 <div class="team-stats-grid">
     <div class="team-stat-card">

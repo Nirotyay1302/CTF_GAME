@@ -148,12 +148,7 @@ def create_sample_users():
     """Create sample users for testing"""
     
     users = [
-        {
-            'username': 'admin',
-            'email': 'admin@ctf.local',
-            'password': 'admin123',
-            'role': 'admin'
-        },
+        # Admin user removed as requested
         {
             'username': 'alice',
             'email': 'alice@example.com',
@@ -272,7 +267,6 @@ def main():
         print(f"   Solves: {total_solves}")
         
         print(f"\n🔑 Login Credentials:")
-        print(f"   Admin: admin / admin123")
         print(f"   User: alice / password123")
         print(f"   User: bob / password123")
 

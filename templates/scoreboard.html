@@ -1,300 +1,180 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>CTF Scoreboard - HUNTING-CTF</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='theme.css') }}">
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-</script>
-    <style>
-        body {
-            background: linear-gradient(rgba(0, 0, 0, 0.6), rgba(0, 0, 0, 0.6)), url('{{ url_for("static", filename="cyber_bg1.jpg") }}') no-repeat center center fixed;
-            background-size: cover;
-            min-height: 100vh;
-            padding: 0;
-        }
-        .container {
-            max-width: 1200px;
-            margin: 0 auto;
-            background: var(--bg-panel);
-            border-radius: 20px;
-            box-shadow: var(--shadow-xl);
-            overflow: hidden;
-            padding: 0 0 24px 0;
-            border: 1px solid var(--border-color);
-        }
-        .header {
-            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-            color: var(--button-text);
-            padding: 30px 10px;
-            text-align: center;
-        }
-        .header h1 { font-size: 2.2rem; font-weight: 700; margin-bottom: 10px; }
-        .header p { font-size: 1.1rem; opacity: 0.9; }
-        .scoreboard-container { padding: 30px 10px; }
-        .navigation { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; margin-bottom: 30px; gap: 10px; }
-        .filters { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
-        .filter-select {
-            background: var(--bg-card);
-            border: 1px solid var(--border-color);
-            color: var(--text-primary);
-            padding: 8px 12px;
-            border-radius: 8px;
-            font-size: 14px;
-        }
-        .stats-overview {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-            gap: 15px;
-            margin-bottom: 30px;
-        }
-        .stat-card {
-            background: var(--bg-card);
-            padding: 20px;
-            border-radius: 12px;
-            border: 1px solid var(--border-color);
-            text-align: center;
-        }
-        .stat-number {
-            font-size: 2rem;
-            font-weight: 700;
-            color: var(--accent-primary);
-            margin-bottom: 5px;
-        }
-        .stat-label {
-            color: var(--text-secondary);
-            font-size: 0.9rem;
-        }
-        .nav-button {
-            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-            color: var(--button-text);
-            padding: 12px 25px;
-            border: none;
-            border-radius: 25px;
-            text-decoration: none;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            display: inline-block;
-            font-size: 1rem;
-        }
-        .nav-button:hover {
-            background: linear-gradient(135deg, var(--accent-secondary) 0%, var(--accent-primary) 100%);
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
-        }
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-            gap: 16px;
-            margin-top: 18px; margin-bottom: 36px;
-        }
-        .stat-card {
-            background: var(--bg-card);
-            padding: 18px 8px;
-            border-radius: 15px;
-            text-align: center;
-            box-shadow: var(--shadow-md);
-            border: 1px solid var(--border-color);
-        }
-        .stat-number { font-size: 1.5rem; font-weight: 700; color: var(--accent-primary); margin-bottom: 5px; }
-        .stat-label { color: var(--text-secondary); font-size: 0.95rem; }
-        .scoreboard-table {
-            width: 100%;
-            border-collapse: collapse;
-            background: var(--bg-card);
-            border-radius: 15px;
-            overflow: hidden;
-            box-shadow: var(--shadow-lg);
-            border: 1.5px solid var(--border-color);
-            margin-top: 18px;
-        }
-        .scoreboard-table th, .scoreboard-table td {
-            padding: 16px 8px;
-            font-size: 1rem;
-        }
-        .scoreboard-table th {
-            background: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-            color: var(--button-text);
-            font-weight: 600;
-        }
-        .scoreboard-table td { border-bottom: 1px solid var(--border-color); color: var(--text-primary); }
-        .scoreboard-table tr:hover { background-color: var(--bg-secondary); transition: all 0.3s ease; }
-        .scoreboard-table tr.current-user { background: var(--bg-tertiary) !important; font-weight: 700; }
-        .scoreboard-table tr.top1 td.rank { color: #ffd700; }
-        .scoreboard-table tr.top2 td.rank { color: #c0c0c0; }
-        .scoreboard-table tr.top3 td.rank { color: #cd7f32; }
-        .rank, .solves, .score, .scoreboard-table th:nth-child(3), .scoreboard-table th:nth-child(4), .scoreboard-table th:nth-child(5), .scoreboard-table td:last-child { text-align: center; }
-        .username { font-weight: 600; color: var(--text-primary); }
-        .score { font-weight: 700; color: var(--accent-success); }
-        .solves { color: var(--text-secondary); }
-        .medals { display: flex; justify-content: center; gap: 5px; }
-        .medal { width: 30px; height: 30px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; font-size: 0.9rem; }
-        .gold { background: linear-gradient(45deg, #ffd700, #ffed4e); }
-        .silver { background: linear-gradient(45deg, #c0c0c0, #e5e5e5); }
-        .bronze { background: linear-gradient(45deg, #cd7f32, #daa520); }
-        
+{% extends "base.html" %}
 
-        
-        @media (max-width: 768px) {
-            .container { margin: 10px; }
-            .header h1 { font-size: 1.8rem; }
-            .navigation { flex-direction: column; }
-            .nav-button { width: 100%; text-align: center; }
-            .stats { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
-        }
-    </style>
-</head>
-<body>
+{% block title %}CTF Scoreboard - HUNTING-CTF{% endblock %}
 
+{% block extra_css %}
+<style>
+    .scoreboard-hero {
+        background: linear-gradient(135deg, rgba(99,102,241,.15), rgba(139,92,246,.15));
+        border: 1px solid var(--dark-border);
+        border-radius: 16px;
+        padding: 1.75rem;
+        margin-bottom: 1.5rem;
+    }
+    .filters-bar {
+        background: rgba(30, 41, 59, 0.6);
+        border: 1px solid var(--dark-border);
+        border-radius: 12px;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+    .filter-select {
+        background: rgba(30, 41, 59, 0.8);
+        border: 1px solid var(--dark-border);
+        color: var(--text-light);
+        border-radius: 8px;
+        padding: .5rem .75rem;
+        min-width: 180px;
+    }
+    .stats-overview {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 12px;
+        margin: .5rem 0 1rem;
+    }
+    .stat-card {
+        background: rgba(30, 41, 59, 0.7);
+        border: 1px solid var(--dark-border);
+        border-radius: 12px;
+        padding: 1rem;
+        text-align: center;
+    }
+    .stat-number { font-size: 1.75rem; font-weight: 800; color: var(--primary-color); }
+    .stat-label { color: var(--text-muted); font-size: .9rem; }
 
-    <div class="container">
-        <div class="header">
-            <h1><i class="fas fa-trophy"></i> CTF Scoreboard</h1>
-            <p>Current rankings and statistics</p>
+    .table-wrap { border: 1px solid var(--dark-border); border-radius: 12px; overflow: hidden; }
+    .scoreboard-table { width: 100%; border-collapse: collapse; }
+    .scoreboard-table th { background: rgba(99,102,241,.15); color: var(--text-light); padding: .75rem; text-align: left; font-weight: 700; }
+    .scoreboard-table td { padding: .75rem; border-bottom: 1px solid var(--dark-border); }
+    .scoreboard-table tr:hover { background: rgba(30, 41, 59, 0.5); }
+    .scoreboard-table tr.current { background: rgba(99,102,241,.1); }
+    .rank, .solves, .score, .medals { text-align: center; }
+    .score { color: var(--success-color); font-weight: 800; }
+
+    .medal { font-size: 1.25rem; }
+    .top1 .rank { color: #ffd700; }
+    .top2 .rank { color: #c0c0c0; }
+    .top3 .rank { color: #cd7f32; }
+
+    .recent-activity { background: rgba(30,41,59,.6); border: 1px solid var(--dark-border); border-radius: 12px; padding: 1rem; }
+    .activity-item { display: flex; justify-content: space-between; padding: .5rem 0; border-bottom: 1px solid var(--dark-border); }
+    .activity-item:last-child { border-bottom: none; }
+    .activity-time { color: var(--text-muted); font-size: .85rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="scoreboard-hero">
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-3">
+        <div>
+            <h2 class="mb-1"><i class="fas fa-trophy me-2"></i>CTF Scoreboard</h2>
+            <div class="text-muted">Current rankings and statistics</div>
         </div>
-        
-        <div class="scoreboard-container">
-            <div class="navigation">
-                <a href="/dashboard" class="nav-button">
-                    <i class="fas fa-arrow-left"></i> Back to Dashboard
-                </a>
-                <a href="/scoreboard/teams" class="nav-button">
-                    <i class="fas fa-users"></i> Team Rankings
-                </a>
-            </div>
+        <div class="d-flex gap-2">
+            <a href="{{ url_for('team_scoreboard') }}" class="btn btn-primary"><i class="fas fa-users me-1"></i>Team Rankings</a>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-outline-primary"><i class="fas fa-arrow-left me-1"></i>Back to Dashboard</a>
+        </div>
+    </div>
 
-            <!-- Filters -->
-            <div class="filters">
-                <select class="filter-select" onchange="filterScoreboard('time', this.value)">
+    <div class="filters-bar mt-3">
+        <form class="row g-2 align-items-center" id="filtersForm" method="get" action="{{ url_for('scoreboard') }}">
+            <div class="col-auto">
+                <select class="form-select filter-select" name="time" onchange="document.getElementById('filtersForm').submit()">
                     <option value="all" {% if time_filter == 'all' %}selected{% endif %}>All Time</option>
                     <option value="day" {% if time_filter == 'day' %}selected{% endif %}>Last 24 Hours</option>
                     <option value="week" {% if time_filter == 'week' %}selected{% endif %}>Last Week</option>
                     <option value="month" {% if time_filter == 'month' %}selected{% endif %}>Last Month</option>
                 </select>
-
-                <select class="filter-select" onchange="filterScoreboard('category', this.value)">
+            </div>
+            <div class="col-auto">
+                <select class="form-select filter-select" name="category" onchange="document.getElementById('filtersForm').submit()">
                     <option value="all" {% if category_filter == 'all' %}selected{% endif %}>All Categories</option>
                     {% for category in categories %}
-                    <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
+                        <option value="{{ category }}" {% if category_filter == category %}selected{% endif %}>{{ category }}</option>
                     {% endfor %}
                 </select>
-
-                <button class="nav-button" onclick="refreshScoreboard()" style="padding: 8px 16px;">
-                    <i class="fas fa-sync-alt"></i> Refresh
-                </button>
             </div>
-
-            <!-- Statistics Overview -->
-            <div class="stats-overview">
-                <div class="stat-card">
-                    <div class="stat-number">{{ total_users }}</div>
-                    <div class="stat-label">Total Players</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{{ total_challenges }}</div>
-                    <div class="stat-label">Challenges</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{{ total_solves }}</div>
-                    <div class="stat-label">Total Solves</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-number">{{ avg_score|round(1) }}</div>
-                    <div class="stat-label">Average Score</div>
-                </div>
+            <div class="col-auto">
+                <button class="btn btn-outline-primary" type="submit"><i class="fas fa-filter me-1"></i>Apply</button>
             </div>
-            
-            <table class="scoreboard-table">
-                <thead>
-                    <tr>
-                        <th>Rank</th>
-                        <th>Username</th>
-                        <th>Solves</th>
-                        <th>Score</th>
-                        <th>Medals</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for user in users %}
-                    <tr class="{% if user.is_current_user %}current-user{% endif %} {% if user.rank <= 3 %}top{{ user.rank }}{% endif %}">
-                        <td class="rank">{{ user.rank }}</td>
-                        <td class="username">
-                            {{ user.username }}
-                            {% if user.country %}
-                                <span style="font-size: 0.8em; color: var(--text-secondary);">({{ user.country }})</span>
-                            {% endif %}
-                        </td>
-                        <td class="solves">{{ user.solve_count }}</td>
-                        <td class="score">{{ user.score }}</td>
-                        <td class="medals">
-                            {% if user.rank == 1 %}
-                                <div class="medal gold">🥇</div>
-                            {% elif user.rank == 2 %}
-                                <div class="medal silver">🥈</div>
-                            {% elif user.rank == 3 %}
-                                <div class="medal bronze">🥉</div>
-                            {% endif %}
-                        </td>
-                    </tr>
-                    {% else %}
-                    <tr>
-                        <td colspan="5" style="padding:20px; color:var(--text-secondary); text-align: center;">No users found.</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-
-            <!-- Recent Activity -->
-            {% if recent_solves %}
-            <div style="margin-top: 30px;">
-                <h3 style="color: var(--text-primary); margin-bottom: 15px;">
-                    <i class="fas fa-clock"></i> Recent Solves
-                </h3>
-                <div style="background: var(--bg-card); border-radius: 12px; padding: 20px; border: 1px solid var(--border-color);">
-                    {% for solve in recent_solves %}
-                    <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border-color);">
-                        <div>
-                            <strong style="color: var(--text-primary);">{{ solve.username }}</strong>
-                            solved
-                            <span style="color: var(--accent-primary);">{{ solve.title }}</span>
-                            <span style="color: var(--accent-success);">({{ solve.points }} pts)</span>
-                        </div>
-                        <div style="color: var(--text-secondary); font-size: 0.9em;">
-                            {{ solve.timestamp.strftime('%H:%M') }}
-                        </div>
-                    </div>
-                    {% endfor %}
-                </div>
-            </div>
-            {% endif %}
-        </div>
+        </form>
     </div>
 
-    <script>
-        function filterScoreboard(type, value) {
-            const url = new URL(window.location);
-            url.searchParams.set(type, value);
-            window.location.href = url.toString();
-        }
+    <div class="stats-overview">
+        <div class="stat-card">
+            <div class="stat-number">{{ total_users }}</div>
+            <div class="stat-label">Total Players</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ total_challenges }}</div>
+            <div class="stat-label">Challenges</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ total_solves }}</div>
+            <div class="stat-label">Total Solves</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-number">{{ avg_score|round(1) }}</div>
+            <div class="stat-label">Average Score</div>
+        </div>
+    </div>
+</div>
 
-        function refreshScoreboard() {
-            window.location.reload();
-        }
+<div class="table-wrap mb-3">
+    <table class="scoreboard-table">
+        <thead>
+            <tr>
+                <th style="width: 90px;">Rank</th>
+                <th>Username</th>
+                <th class="text-center" style="width: 120px;">Solves</th>
+                <th class="text-center" style="width: 140px;">Score</th>
+                <th class="text-center" style="width: 120px;">Medal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for user in users %}
+            <tr class="{% if user.is_current_user %}current{% endif %} {% if user.rank <= 3 %}top{{ user.rank }}{% endif %}">
+                <td class="rank">{{ user.rank }}</td>
+                <td class="username">
+                    {{ user.username }}
+                    {% if user.country %}
+                        <span class="text-muted" style="font-size:.85rem">({{ user.country }})</span>
+                    {% endif %}
+                </td>
+                <td class="solves">{{ user.solve_count }}</td>
+                <td class="score">{{ user.score }}</td>
+                <td class="medals">
+                    {% if user.rank == 1 %}🥇{% elif user.rank == 2 %}🥈{% elif user.rank == 3 %}🥉{% else %}<i class="fas fa-medal text-muted"></i>{% endif %}
+                </td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="5" class="text-center text-muted py-3">No users found.</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
 
-        // Auto-refresh every 30 seconds
-        setInterval(refreshScoreboard, 30000);
+{% if recent_solves %}
+<div class="recent-activity">
+    <h5 class="mb-2"><i class="fas fa-clock me-2"></i>Recent Solves</h5>
+    {% for solve in recent_solves %}
+    <div class="activity-item">
+        <div>
+            <strong>{{ solve.username }}</strong> solved <span class="text-primary">{{ solve.title }}</span>
+            <span class="text-success">({{ solve.points }} pts)</span>
+        </div>
+        <div class="activity-time">{{ solve.timestamp.strftime('%H:%M') }}</div>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+{% endblock %}
 
-        // Add loading state for filters
-        document.querySelectorAll('.filter-select').forEach(select => {
-            select.addEventListener('change', function() {
-                this.style.opacity = '0.5';
-                this.disabled = true;
-            });
-        });
-    </script>
-
-    {% include '_contact_footer.html' %}
-</body>
-</html>
+{% block extra_js %}
+<script>
+    // Optional auto-refresh every 30 seconds
+    // setInterval(() => window.location.reload(), 30000);
+</script>
+{% endblock %}

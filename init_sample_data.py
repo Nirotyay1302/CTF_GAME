@@ -49,6 +49,8 @@ def create_sample_users():
     for user_data in users:
         existing_user = User.query.filter_by(username=user_data['username']).first()
         if not existing_user:
+            # Set is_player=False for admin accounts
+            is_player = user_data['role'] != 'admin'
             user = User(
                 username=user_data['username'],
                 email=user_data['email'],
@@ -56,7 +58,8 @@ def create_sample_users():
                 role=user_data['role'],
                 first_name=user_data['first_name'],
                 last_name=user_data['last_name'],
-                score=0
+                score=0,
+                is_player=is_player
             )
             db.session.add(user)
             created_users.append(user)

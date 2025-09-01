@@ -15,6 +15,9 @@
             <p>Manage all registered users and their activities</p>
         </div>
         <div class="admin-actions">
+            <a href="{{ url_for('admin_create_user') }}" class="btn btn-success me-2">
+                <i class="fas fa-user-plus"></i> Add User
+            </a>
             <button class="btn btn-danger" onclick="deleteSelectedUsers()" id="deleteSelectedBtn" style="display: none;">
                 <i class="fas fa-trash"></i> Delete Selected
             </button>
@@ -55,7 +58,7 @@
             <div class="stat-number">
                 {% set team_members = 0 %}
                 {% for user in users %}
-                    {% if user.team_memberships %}
+                    {% if user.team_membership %}
                         {% set team_members = team_members + 1 %}
                     {% endif %}
                 {% endfor %}
@@ -101,7 +104,7 @@
                             <th>Solves</th>
                             <th>Score</th>
                             <th>Joined</th>
-                            <th width="120">Actions</th>
+                            <th width="150">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -123,10 +126,9 @@
                             </td>
                             <td>{{ user.email }}</td>
                             <td>
-                                {% if user.team_memberships %}
-                                    {% set membership = user.team_memberships[0] %}
-                                    <span class="badge bg-primary">{{ membership.team.name }}</span>
-                                    {% if membership.role == 'leader' %}
+                                {% if user.team_membership %}
+                                    <span class="badge bg-primary">{{ user.team_membership.team.name }}</span>
+                                    {% if user.team_membership.role == 'leader' %}
                                         <span class="badge bg-warning text-dark ms-1">Leader</span>
                                     {% endif %}
                                 {% else %}
@@ -150,6 +152,9 @@
                             </td>
                             <td>
                                 <div class="btn-group btn-group-sm">
+                                    <a class="btn btn-outline-secondary btn-sm" href="mailto:{{ user.email }}" title="Email User">
+                                        <i class="fas fa-envelope"></i>
+                                    </a>
                                     <button class="btn btn-outline-primary btn-sm" onclick="viewUser({{ user.id }})" title="View Details">
                                         <i class="fas fa-eye"></i>
                                     </button>

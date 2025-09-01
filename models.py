@@ -10,7 +10,8 @@ class User(db.Model):
     username = db.Column(db.String(150), unique=True, nullable=False)
     email = db.Column(db.String(150), unique=True, nullable=False)
     password_hash = db.Column(db.String(512), nullable=False)
-    role = db.Column(db.String(20), default='user')
+    role = db.Column(db.String(20), default='user')  # 'user', 'admin'
+    is_player = db.Column(db.Boolean, default=True)  # False for admin accounts
     score = db.Column(db.Integer, default=0)
     
     # Profile fields
@@ -97,7 +98,7 @@ class Challenge(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     title = db.Column(db.String(100), nullable=False)
     description = db.Column(db.Text, nullable=False)
-    flag_encrypted = db.Column(db.LargeBinary, nullable=False)
+    flag_encrypted = db.Column(db.LargeBinary, nullable=True)  # Nullable for templates
     points = db.Column(db.Integer, default=10)
     category = db.Column(db.String(50), default='misc')
     difficulty = db.Column(db.String(20), default='easy')
@@ -112,6 +113,9 @@ class Challenge(db.Model):
     # Answer explanation and solution
     answer_explanation = db.Column(db.Text, nullable=True)
     solution_steps = db.Column(db.Text, nullable=True)
+    # Template flag for challenge templates
+    is_template = db.Column(db.Boolean, default=False)
+    created_by_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
     # Hints available for this challenge
     hints = db.relationship('Hint', backref='challenge', lazy=True, cascade='all, delete-orphan')
 

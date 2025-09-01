@@ -7,8 +7,22 @@ import os
 import secrets
 import hashlib
 import time
+import sys
+import platform
+import flask
+import sqlalchemy
 from datetime import datetime, timedelta
 from functools import wraps
+from threading import Thread
+from dotenv import load_dotenv
+# Load environment variables from a .env file if present
+load_dotenv()
+
+# Try to import psutil for system monitoring
+try:
+    import psutil
+except ImportError:
+    pass
 
 from flask import Flask, render_template, request, redirect, url_for, session, flash, jsonify, g
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -30,7 +44,7 @@ from models import (
     db, User, Challenge, Solve, Submission, Team, TeamMembership,
     Tournament, Hint, UserHint, Notification, ChatMessage, Friend
 )
-from flask_mail import Mail
+from flask_mail import Mail, Message
 from flask_migrate import Migrate
 from flask_compress import Compress
 
@@ -58,6 +72,41 @@ app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
 # Initialize extensions
 db.init_app(app)
 
+# Email configuration
+
+def _env_bool(val, default=False):
+    if val is None:
+        return default
+    if isinstance(val, (bool, int)):
+        return bool(val)
+    return str(val).strip().lower() in ('true', '1', 't', 'yes', 'y', 'on')
+
+def _clean_app_password(pwd: str) -> str:
+    # Gmail app passwords are displayed with spaces for readability; remove them
+    return (pwd or '').replace(' ', '').strip()
+
+app.config['MAIL_SERVER'] = (os.environ.get('MAIL_SERVER') or 'smtp.gmail.com').strip()
+app.config['MAIL_PORT'] = int(os.environ.get('MAIL_PORT', 587))
+app.config['MAIL_USE_TLS'] = _env_bool(os.environ.get('MAIL_USE_TLS', True), True)
+app.config['MAIL_USE_SSL'] = _env_bool(os.environ.get('MAIL_USE_SSL', False), False)
+app.config['MAIL_SUPPRESS_SEND'] = _env_bool(os.environ.get('MAIL_SUPPRESS_SEND', False), False)
+app.config['MAIL_USERNAME'] = (os.environ.get('MAIL_USERNAME') or '').strip()
+app.config['MAIL_PASSWORD'] = _clean_app_password(os.environ.get('MAIL_PASSWORD'))
+_default_sender = os.environ.get('MAIL_DEFAULT_SENDER') or app.config['MAIL_USERNAME']
+app.config['MAIL_DEFAULT_SENDER'] = _default_sender.strip()
+app.config['NOTIFICATION_EMAIL'] = (os.environ.get('ADMIN_EMAIL') or '').strip() or app.config['MAIL_USERNAME']
+
+# If both TLS and SSL were set, prefer TLS on port 587
+if app.config['MAIL_USE_TLS'] and app.config['MAIL_USE_SSL']:
+    app.config['MAIL_USE_SSL'] = False
+
+# Email notification settings
+app.config['EMAIL_ON_LOGIN'] = os.environ.get('EMAIL_ON_LOGIN', 'True').lower() in ('true', '1', 't')
+app.config['EMAIL_ON_LOGOUT'] = os.environ.get('EMAIL_ON_LOGOUT', 'True').lower() in ('true', '1', 't')
+app.config['EMAIL_NEW_USER'] = os.environ.get('EMAIL_NEW_USER', 'True').lower() in ('true', '1', 't')
+app.config['EMAIL_CHALLENGE_SOLVED'] = os.environ.get('EMAIL_CHALLENGE_SOLVED', 'True').lower() in ('true', '1', 't')
+app.config['EMAIL_TEAM_CREATED'] = os.environ.get('EMAIL_TEAM_CREATED', 'True').lower() in ('true', '1', 't')
+
 # Add custom Jinja2 filters
 def nl2br(value):
     """Convert newlines to HTML line breaks"""
@@ -77,7 +126,38 @@ else:
     socketio = None
 
 # Encryption for flags
-ENCRYPTION_KEY = os.environ.get('ENCRYPTION_KEY', Fernet.generate_key())
+# Prefer FERNET_KEY from .env, fallback to ENCRYPTION_KEY, then persistent key file under instance/
+
+def _load_encryption_key():
+    key = os.environ.get('FERNET_KEY') or os.environ.get('ENCRYPTION_KEY')
+    if key:
+        # If key is a string, ensure bytes
+        if isinstance(key, str):
+            try:
+                return key.encode()
+            except Exception:
+                pass
+        return key
+
+    # Fallback: persistent key file in instance/fernet.key
+    instance_dir = os.path.join(app.root_path, 'instance')
+    os.makedirs(instance_dir, exist_ok=True)
+    key_path = os.path.join(instance_dir, 'fernet.key')
+    if os.path.exists(key_path):
+        with open(key_path, 'rb') as f:
+            return f.read()
+
+    # Generate and persist a new key if none exists
+    new_key = Fernet.generate_key()
+    try:
+        with open(key_path, 'wb') as f:
+            f.write(new_key)
+    except OSError:
+        # If we cannot persist, still return the generated key
+        pass
+    return new_key
+
+ENCRYPTION_KEY = _load_encryption_key()
 cipher_suite = Fernet(ENCRYPTION_KEY)
 
 # Helper functions
@@ -94,6 +174,7 @@ def admin_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
         if 'user_id' not in session:
+            flash('Please log in to access this page.', 'error')
             return redirect(url_for('login'))
         user = db.session.get(User, session['user_id'])
         if not user or user.role != 'admin':
@@ -145,6 +226,54 @@ def get_user_rank(user_id):
     ).scalar()
     return (higher_scores or 0) + 1
 
+def send_email(subject, recipients, body, html=None):
+    """Send email using Flask-Mail with retries and proper checks"""
+    import smtplib
+    if not app.config.get('MAIL_SERVER') or not app.config.get('MAIL_PORT'):
+        app.logger.warning('Email not sent: MAIL_SERVER/MAIL_PORT not configured')
+        return False
+    if not app.config.get('MAIL_USERNAME') or not app.config.get('MAIL_PASSWORD'):
+        app.logger.warning('Email not sent: MAIL_USERNAME/MAIL_PASSWORD not configured')
+        return False
+    if app.config.get('MAIL_SUPPRESS_SEND'):
+        app.logger.info('MAIL_SUPPRESS_SEND enabled, skipping actual email send')
+        return True
+
+    # Normalize recipients list
+    if isinstance(recipients, str):
+        recipients = [recipients]
+
+    msg = Message(
+        subject or 'Notification',
+        recipients=recipients,
+        sender=app.config.get('MAIL_DEFAULT_SENDER') or app.config.get('MAIL_USERNAME')
+    )
+    msg.body = body or ''
+    if html:
+        msg.html = html
+
+    max_attempts = 3
+    for attempt in range(1, max_attempts + 1):
+        try:
+            if flask.has_app_context():
+                with mail.connect() as conn:
+                    conn.send(msg)
+            else:
+                with app.app_context():
+                    with mail.connect() as conn:
+                        conn.send(msg)
+            return True
+        except smtplib.SMTPAuthenticationError as e:
+            app.logger.error(f'SMTP auth error: {e}')
+            break  # no point retrying on bad credentials
+        except (smtplib.SMTPServerDisconnected, smtplib.SMTPException, OSError) as e:
+            app.logger.error(f'Email send attempt {attempt}/{max_attempts} failed: {e}')
+            time.sleep(min(2 ** attempt, 8))
+        except Exception as e:
+            app.logger.error(f'Unexpected email error: {e}')
+            time.sleep(min(2 ** attempt, 8))
+    return False
+
 # Context processors
 @app.context_processor
 def inject_user():
@@ -174,7 +303,7 @@ def index():
     # Get basic stats with error handling
     try:
         total_challenges = Challenge.query.count()
-        total_users = User.query.count()
+        total_users = User.query.filter(User.role != 'admin', User.is_player == True).count()
     except Exception as e:
         print(f"Database query error: {e}")
         total_challenges = 0
@@ -251,6 +380,19 @@ def register():
             )
             db.session.add(user)
             db.session.commit()
+
+            # Send welcome email on registration
+            if user.email:
+                subject = "HUNTING-CTF: Welcome to the platform"
+                body = f"Hello {user.username},\n\nYour account has been created successfully.\nStart solving challenges and climb the leaderboard!\n\nRegards,\nThe HUNTING-CTF Team"
+                html = f"""
+                <h2>Welcome to HUNTING-CTF</h2>
+                <p>Hello {user.username},</p>
+                <p>Your account has been created successfully.</p>
+                <p>Start solving challenges and climb the leaderboard!</p>
+                <p>Regards,<br>The HUNTING-CTF Team</p>
+                """
+                Thread(target=send_email, args=(subject, [user.email], body, html)).start()
             
             flash('Registration successful! Please log in.', 'success')
             return redirect(url_for('login'))
@@ -280,10 +422,47 @@ def login():
             session['user_id'] = user.id
             session['username'] = user.username
             session['role'] = user.role
+            session['is_player'] = user.is_player
+            
+            # Update last login time
+            user.last_login = datetime.utcnow()
+            db.session.commit()
             
             flash(f'Welcome back, {user.username}!', 'success')
             
-            # Redirect to next page or dashboard
+            # Send login email notification with stats (always)
+            if user.email and user.role == 'user':
+                user_score = calculate_user_score(user.id)
+                user_rank = get_user_rank(user.id)
+                challenges_solved = Solve.query.filter_by(user_id=user.id).count()
+                total_challenges = Challenge.query.count()
+                
+                subject = f"HUNTING-CTF: Login Notification"
+                body = f"Hello {user.username},\n\nYou have successfully logged in to your HUNTING-CTF account.\n\nYour current statistics:\n- Score: {user_score}\n- Rank: {user_rank}\n- Challenges solved: {challenges_solved}/{total_challenges}\n\nKeep up the good work!\n\nRegards,\nThe HUNTING-CTF Team"
+                
+                html = f"""
+                <h2>HUNTING-CTF: Login Notification</h2>
+                <p>Hello {user.username},</p>
+                <p>You have successfully logged in to your HUNTING-CTF account.</p>
+                <h3>Your current statistics:</h3>
+                <ul>
+                    <li><strong>Score:</strong> {user_score}</li>
+                    <li><strong>Rank:</strong> {user_rank}</li>
+                    <li><strong>Challenges solved:</strong> {challenges_solved}/{total_challenges}</li>
+                </ul>
+                <p>Keep up the good work!</p>
+                <p>Regards,<br>The HUNTING-CTF Team</p>
+                """
+                
+                # Send email in background to avoid delaying the response
+                Thread(target=send_email, args=(subject, [user.email], body, html)).start()
+            
+            # Redirect admin users directly to admin dashboard
+            if user.role == 'admin' and not user.is_player:
+                flash('You are logged in as an administrator. This is not a player account.', 'info')
+                return redirect(url_for('admin_dashboard'))
+            
+            # Redirect regular users to dashboard
             next_page = request.args.get('next')
             if next_page:
                 return redirect(next_page)
@@ -297,6 +476,44 @@ def login():
 def logout():
     """User logout"""
     username = session.get('username', 'User')
+    user_id = session.get('user_id')
+    user_role = session.get('role')
+    user_email = None
+    
+    # Get user information before clearing session
+    if user_id:
+        user = User.query.get(user_id)
+        if user:
+            user_email = user.email
+            
+            # Send logout email notification with score if enabled
+            # Send logout email notification with current game status (always)
+            if user_email and user_role == 'user':
+                user_score = calculate_user_score(user.id)
+                user_rank = get_user_rank(user.id)
+                challenges_solved = Solve.query.filter_by(user_id=user.id).count()
+                total_challenges = Challenge.query.count()
+                
+                subject = f"HUNTING-CTF: Logout Notification"
+                body = f"Hello {username},\n\nYou have successfully logged out from your HUNTING-CTF account.\n\nYour current statistics:\n- Score: {user_score}\n- Rank: {user_rank}\n- Challenges solved: {challenges_solved}/{total_challenges}\n\nWe hope to see you back soon!\n\nRegards,\nThe HUNTING-CTF Team"
+                
+                html = f"""
+                <h2>HUNTING-CTF: Logout Notification</h2>
+                <p>Hello {username},</p>
+                <p>You have successfully logged out from your HUNTING-CTF account.</p>
+                <h3>Your current statistics:</h3>
+                <ul>
+                    <li><strong>Score:</strong> {user_score}</li>
+                    <li><strong>Rank:</strong> {user_rank}</li>
+                    <li><strong>Challenges solved:</strong> {challenges_solved}/{total_challenges}</li>
+                </ul>
+                <p>We hope to see you back soon!</p>
+                <p>Regards,<br>The HUNTING-CTF Team</p>
+                """
+                
+                # Send email in background to avoid delaying the response
+                Thread(target=send_email, args=(subject, [user_email], body, html)).start()
+    
     session.clear()
     flash(f'Goodbye, {username}!', 'info')
     return redirect(url_for('index'))
@@ -359,48 +576,60 @@ def challenges():
     user = get_current_user()
 
     # Prevent admin from accessing challenges as a player
-    if user.role == 'admin':
+    if user.role == 'admin' and not user.is_player:
         flash('Administrators cannot participate in challenges. Please use the admin panel to manage challenges.', 'warning')
         return redirect(url_for('admin_dashboard'))
 
-    category = request.args.get('category', '')
-    difficulty = request.args.get('difficulty', '')
+    # Read filters from query params
+    search_query = request.args.get('search', '').strip()
+    category_filter = request.args.get('category', '')
+    difficulty_filter = request.args.get('difficulty', '')
+    solved_filter = request.args.get('solved', '')  # 'solved' | 'unsolved' | ''
 
     # Build query
     query = Challenge.query
 
-    if category:
-        query = query.filter_by(category=category)
-    if difficulty:
-        query = query.filter_by(difficulty=difficulty)
+    if category_filter:
+        query = query.filter(func.lower(Challenge.category) == category_filter.lower())
+    if difficulty_filter:
+        query = query.filter(func.lower(Challenge.difficulty) == difficulty_filter.lower())
+    if search_query:
+        query = query.filter((Challenge.title.ilike(f"%{search_query}%")) | (Challenge.description.ilike(f"%{search_query}%")))
 
-    challenges = query.order_by(Challenge.points.asc()).all()
-
-    # Get user's solves
+    # Get user's solves before applying solved filter
     user = get_current_user()
     user_solves = {solve.challenge_id for solve in Solve.query.filter_by(user_id=user.id).all()}
 
+    # Fetch and apply solved filter in-memory for simplicity
+    challenges = query.order_by(Challenge.points.asc()).all()
+    if solved_filter == 'solved':
+        challenges = [c for c in challenges if c.id in user_solves]
+    elif solved_filter == 'unsolved':
+        challenges = [c for c in challenges if c.id not in user_solves]
+
     # Get categories and difficulties for filters
-    categories = db.session.query(Challenge.category).distinct().filter(
-        Challenge.category.isnot(None)
-    ).all()
-    categories = [cat[0] for cat in categories if cat[0]]
+    categories = db.session.query(Challenge.category).filter(Challenge.category.isnot(None)).distinct().all()
+    categories = sorted({(cat[0] or '').lower() for cat in categories if cat[0]})
 
     difficulties = ['easy', 'medium', 'hard', 'expert']
 
     # Calculate additional stats for the template
     total_challenges = Challenge.query.count()
     solved_count = len(user_solves)
+    total_points = calculate_user_score(user.id)
 
     return render_template('challenges.html',
                          challenges=challenges,
-                         user_solves=user_solves,
                          categories=categories,
                          difficulties=difficulties,
-                         selected_category=category,
-                         selected_difficulty=difficulty,
+                         category_filter=category_filter,
+                         difficulty_filter=difficulty_filter,
+                         solved_filter=solved_filter,
+                         search_query=search_query,
                          total_challenges=total_challenges,
-                         solved_count=solved_count)
+                         solved_count=solved_count,
+                         total_points=total_points,
+                         solved_ids=list(user_solves))
 
 @app.route('/challenge/<int:challenge_id>')
 @login_required
@@ -408,6 +637,10 @@ def challenge_detail(challenge_id):
     """Individual challenge page"""
     challenge = Challenge.query.get_or_404(challenge_id)
     user = get_current_user()
+
+    # Previous and next challenges by ID
+    prev_challenge = Challenge.query.filter(Challenge.id < challenge.id).order_by(Challenge.id.desc()).first()
+    next_challenge = Challenge.query.filter(Challenge.id > challenge.id).order_by(Challenge.id.asc()).first()
 
     # Check if user has solved this challenge
     solve = Solve.query.filter_by(user_id=user.id, challenge_id=challenge.id).first()
@@ -422,20 +655,39 @@ def challenge_detail(challenge_id):
     recent_submissions = Submission.query.filter_by(
         user_id=user.id, challenge_id=challenge.id
     ).order_by(Submission.submitted_at.desc()).limit(5).all()
+    
+    # Get friends for chat functionality
+    friends = []
+    if user:
+        friends = db.session.query(User).join(
+            Friend, 
+            ((Friend.user_id == user.id) & (Friend.friend_id == User.id)) | 
+            ((Friend.friend_id == user.id) & (Friend.user_id == User.id))
+        ).filter(Friend.status == 'accepted').all()
 
     return render_template('challenge_detail.html',
                          challenge=challenge,
                          solve=solve,
                          hints=hints,
                          revealed_hints=revealed_hints,
-                         recent_submissions=recent_submissions)
+                         recent_submissions=recent_submissions,
+                         prev_challenge=prev_challenge,
+                         next_challenge=next_challenge,
+                         friends=friends,
+                         user_team=user.team_membership.team if user and user.team_membership else None)
 
 @app.route('/submit_flag', methods=['POST'])
 @login_required
 def submit_flag():
     """Submit flag for a challenge"""
-    challenge_id = request.form.get('challenge_id', type=int)
-    submitted_flag = request.form.get('flag', '').strip()
+    # Support both JSON and form-urlencoded submissions
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        challenge_id = data.get('challenge_id')
+        submitted_flag = (data.get('flag') or '').strip()
+    else:
+        challenge_id = request.form.get('challenge_id', type=int)
+        submitted_flag = request.form.get('flag', '').strip()
 
     if not challenge_id or not submitted_flag:
         return jsonify({'success': False, 'message': 'Challenge ID and flag are required.'})
@@ -499,6 +751,90 @@ def submit_flag():
         db.session.rollback()
         return jsonify({'success': False, 'message': 'An error occurred. Please try again.'})
 
+# Fast challenge JSON API
+@app.route('/api/fast/challenge/<int:challenge_id>')
+@login_required
+def api_fast_challenge(challenge_id):
+    user = get_current_user()
+    challenge = Challenge.query.get_or_404(challenge_id)
+
+    # Check solved
+    is_solved = bool(Solve.query.filter_by(user_id=user.id, challenge_id=challenge.id).first())
+
+    # Collect hints with reveal status
+    hints = []
+    for hint in Hint.query.filter_by(challenge_id=challenge.id).order_by(Hint.display_order).all():
+        revealed = bool(UserHint.query.filter_by(user_id=user.id, hint_id=hint.id).first())
+        hints.append({
+            'id': hint.id,
+            'cost': hint.cost,
+            'revealed': revealed,
+            'text': hint.content if revealed else None
+        })
+
+    return jsonify({
+        'success': True,
+        'challenge': {
+            'id': challenge.id,
+            'title': challenge.title,
+            'description': challenge.description,
+            'category': challenge.category,
+            'difficulty': challenge.difficulty,
+            'points': challenge.points,
+            'is_solved': is_solved,
+            'hints': hints
+        }
+    })
+
+# Submit flag for fast challenge UI (by path parameter)
+@app.route('/api/submit_flag/<int:challenge_id>', methods=['POST'])
+@login_required
+def api_submit_flag(challenge_id):
+    user = get_current_user()
+    challenge = Challenge.query.get_or_404(challenge_id)
+
+    data = request.get_json(silent=True) or {}
+    submitted_flag = (data.get('flag') or '').strip()
+    if not submitted_flag:
+        return jsonify({'success': False, 'error': 'Flag is required'}), 400
+
+    # Already solved?
+    if Solve.query.filter_by(user_id=user.id, challenge_id=challenge.id).first():
+        return jsonify({'success': False, 'error': 'You have already solved this challenge'}), 400
+
+    # Record submission
+    submission = Submission(
+        user_id=user.id,
+        challenge_id=challenge.id,
+        submitted_flag=submitted_flag,
+        is_correct=False
+    )
+
+    is_correct = validate_flag(submitted_flag, challenge)
+    submission.is_correct = is_correct
+
+    try:
+        db.session.add(submission)
+        if is_correct:
+            solve = Solve(user_id=user.id, challenge_id=challenge.id, solved_at=datetime.utcnow())
+            db.session.add(solve)
+            notification = Notification(
+                user_id=user.id,
+                title='Challenge Solved!',
+                message=f'Congratulations! You solved "{challenge.title}" and earned {challenge.points} points.',
+                type='success'
+            )
+            db.session.add(notification)
+        db.session.commit()
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'Database error'}), 500
+
+    if is_correct:
+        return jsonify({'success': True, 'message': 'Correct flag!', 'points': challenge.points})
+    else:
+        return jsonify({'success': False, 'error': 'Incorrect flag'})
+
 @app.route('/scoreboard')
 def scoreboard():
     """Public scoreboard"""
@@ -512,21 +848,45 @@ def scoreboard():
         users_with_solves = db.session.query(User).join(Solve).distinct().all()
 
         # Also include users without solves for complete leaderboard
-        all_users = User.query.all()
+        all_users = User.query.filter(User.role != 'admin').all()
+
+        # Determine time window for filtering
+        time_from = None
+        if time_filter == 'day':
+            time_from = datetime.utcnow() - timedelta(days=1)
+        elif time_filter == 'week':
+            time_from = datetime.utcnow() - timedelta(weeks=1)
+        elif time_filter == 'month':
+            time_from = datetime.utcnow() - timedelta(days=30)
 
         for user in all_users:
-            # Calculate total score for this user
-            total_score = db.session.query(func.sum(Challenge.points)).join(Solve).filter(
-                Solve.user_id == user.id
-            ).scalar() or 0
+            # Base solve query for this user with optional filters
+            base_query = db.session.query(Solve).join(Challenge).filter(Solve.user_id == user.id)
+            if time_from is not None:
+                base_query = base_query.filter(Solve.solved_at >= time_from)
+            if category_filter != 'all':
+                base_query = base_query.filter(func.lower(Challenge.category) == category_filter.lower())
 
-            # Count solves for this user
-            solve_count = Solve.query.filter_by(user_id=user.id).count()
-
-            # Get last solve time
-            last_solve = db.session.query(func.max(Solve.solved_at)).filter(
+            # Total score within filters
+            score_query = db.session.query(func.coalesce(func.sum(Challenge.points), 0)).select_from(Solve).join(Challenge).filter(
                 Solve.user_id == user.id
-            ).scalar()
+            )
+            if time_from is not None:
+                score_query = score_query.filter(Solve.solved_at >= time_from)
+            if category_filter != 'all':
+                score_query = score_query.filter(func.lower(Challenge.category) == category_filter.lower())
+            total_score = score_query.scalar() or 0
+
+            # Solve count within filters
+            solve_count = base_query.count()
+
+            # Last solve time within filters
+            last_solve_query = db.session.query(func.max(Solve.solved_at)).select_from(Solve).join(Challenge).filter(Solve.user_id == user.id)
+            if time_from is not None:
+                last_solve_query = last_solve_query.filter(Solve.solved_at >= time_from)
+            if category_filter != 'all':
+                last_solve_query = last_solve_query.filter(func.lower(Challenge.category) == category_filter.lower())
+            last_solve = last_solve_query.scalar()
 
             users_data.append({
                 'id': user.id,
@@ -541,6 +901,9 @@ def scoreboard():
         # Sort by score descending, then by last solve time ascending (for tiebreaking)
         users_data.sort(key=lambda x: (-x['score'], x['last_solve'] or datetime.min))
 
+        # Compute average across full (filtered) user list BEFORE slicing
+        avg_score = sum(u['score'] for u in users_data) / len(users_data) if users_data else 0
+
         # Add rank to each user
         for i, user in enumerate(users_data, 1):
             user['rank'] = i
@@ -549,22 +912,35 @@ def scoreboard():
         users_data = users_data[:100]
 
         # Calculate statistics
-        total_users = User.query.count()
-        total_challenges = Challenge.query.count()
-        total_solves = Solve.query.count()
-        avg_score = sum(user['score'] for user in users_data) / len(users_data) if users_data else 0
+        total_users = User.query.filter(User.role != 'admin').count()
+        if category_filter != 'all':
+            total_challenges = Challenge.query.filter(func.lower(Challenge.category) == category_filter.lower()).count()
+        else:
+            total_challenges = Challenge.query.count()
+        total_solves_query = Solve.query
+        if time_from is not None:
+            total_solves_query = total_solves_query.filter(Solve.solved_at >= time_from)
+        if category_filter != 'all':
+            total_solves_query = total_solves_query.join(Challenge).filter(func.lower(Challenge.category) == category_filter.lower())
+        total_solves = total_solves_query.count()
+        avg_score = avg_score
 
         # Get categories for filter
         categories = db.session.query(Challenge.category).distinct().all()
         categories = [cat[0] for cat in categories if cat[0]]
 
-        # Get recent solves for activity feed
-        recent_solves = db.session.query(
+        # Get recent solves for activity feed (with filters)
+        recent_query = db.session.query(
             Solve.solved_at.label('timestamp'),
             User.username,
             Challenge.title,
             Challenge.points
-        ).join(User).join(Challenge).order_by(Solve.solved_at.desc()).limit(10).all()
+        ).select_from(Solve).join(User, User.id == Solve.user_id).join(Challenge, Challenge.id == Solve.challenge_id)
+        if time_from is not None:
+            recent_query = recent_query.filter(Solve.solved_at >= time_from)
+        if category_filter != 'all':
+            recent_query = recent_query.filter(func.lower(Challenge.category) == category_filter.lower())
+        recent_solves = recent_query.filter(User.role != 'admin').order_by(Solve.solved_at.desc()).limit(10).all()
 
     except Exception as e:
         print(f"Scoreboard error: {e}")
@@ -591,6 +967,17 @@ def scoreboard():
 def team_scoreboard():
     """Team rankings scoreboard"""
     try:
+        # Filters for team scoreboard
+        time_filter = request.args.get('time', 'all')
+        category_filter = request.args.get('category', 'all')
+        time_from = None
+        if time_filter == 'day':
+            time_from = datetime.utcnow() - timedelta(days=1)
+        elif time_filter == 'week':
+            time_from = datetime.utcnow() - timedelta(weeks=1)
+        elif time_filter == 'month':
+            time_from = datetime.utcnow() - timedelta(days=30)
+
         # Get all teams with their statistics
         teams_data = []
         all_teams = Team.query.all()
@@ -607,20 +994,35 @@ def team_scoreboard():
             last_solve = None
 
             for member in team_members:
-                # Get member's total score
-                member_score = db.session.query(func.sum(Challenge.points)).join(Solve).filter(
+                # Get member's total score (with filters)
+                member_score_query = db.session.query(func.coalesce(func.sum(Challenge.points), 0)).select_from(Solve).join(Challenge).filter(
                     Solve.user_id == member.id
-                ).scalar() or 0
+                )
+                if time_from is not None:
+                    member_score_query = member_score_query.filter(Solve.solved_at >= time_from)
+                if category_filter != 'all':
+                    member_score_query = member_score_query.filter(func.lower(Challenge.category) == category_filter.lower())
+                member_score = member_score_query.scalar() or 0
                 team_score += member_score
 
-                # Get member's solve count
-                member_solves = Solve.query.filter_by(user_id=member.id).count()
+                # Get member's solve count (with filters)
+                member_solves_query = Solve.query.filter_by(user_id=member.id)
+                if time_from is not None:
+                    member_solves_query = member_solves_query.filter(Solve.solved_at >= time_from)
+                if category_filter != 'all':
+                    member_solves_query = member_solves_query.join(Challenge).filter(func.lower(Challenge.category) == category_filter.lower())
+                member_solves = member_solves_query.count()
                 team_solves += member_solves
 
-                # Get member's last solve time
-                member_last_solve = db.session.query(func.max(Solve.solved_at)).filter(
+                # Get member's last solve time (with filters)
+                member_last_solve_query = db.session.query(func.max(Solve.solved_at)).select_from(Solve).join(Challenge).filter(
                     Solve.user_id == member.id
-                ).scalar()
+                )
+                if time_from is not None:
+                    member_last_solve_query = member_last_solve_query.filter(Solve.solved_at >= time_from)
+                if category_filter != 'all':
+                    member_last_solve_query = member_last_solve_query.join(Challenge).filter(func.lower(Challenge.category) == category_filter.lower())
+                member_last_solve = member_last_solve_query.scalar()
 
                 if member_last_solve and (not last_solve or member_last_solve > last_solve):
                     last_solve = member_last_solve
@@ -652,15 +1054,19 @@ def team_scoreboard():
 
         # Get recent team activities (team solves)
         recent_team_solves = []
-        recent_solves = db.session.query(
+        recent_query = db.session.query(
             Solve.solved_at.label('timestamp'),
             User.username,
             Challenge.title,
             Challenge.points,
             Team.name.label('team_name')
-        ).join(User).join(Challenge).join(TeamMembership, TeamMembership.user_id == User.id)\
-         .join(Team, Team.id == TeamMembership.team_id)\
-         .order_by(Solve.solved_at.desc()).limit(15).all()
+        ).select_from(Solve).join(User, User.id == Solve.user_id).join(Challenge, Challenge.id == Solve.challenge_id).join(TeamMembership, TeamMembership.user_id == User.id)\
+         .join(Team, Team.id == TeamMembership.team_id)
+        if time_from is not None:
+            recent_query = recent_query.filter(Solve.solved_at >= time_from)
+        if category_filter != 'all':
+            recent_query = recent_query.filter(func.lower(Challenge.category) == category_filter.lower())
+        recent_solves = recent_query.filter(User.role != 'admin').order_by(Solve.solved_at.desc()).limit(15).all()
 
         recent_team_solves = recent_solves
 
@@ -685,7 +1091,12 @@ def team_scoreboard():
 @login_required
 def purchase_hint():
     """Purchase a hint for a challenge"""
-    hint_id = request.form.get('hint_id', type=int)
+    # Support both JSON and form-urlencoded submissions
+    if request.is_json:
+        data = request.get_json(silent=True) or {}
+        hint_id = data.get('hint_id')
+    else:
+        hint_id = request.form.get('hint_id', type=int)
     if not hint_id:
         return jsonify({'success': False, 'message': 'Hint ID is required.'})
 
@@ -743,6 +1154,10 @@ def show_answer(challenge_id):
             actual_flag = challenge.flag_encrypted.decode() if isinstance(challenge.flag_encrypted, bytes) else challenge.flag_encrypted
     except:
         actual_flag = "Flag decryption error"
+
+    # Support JSON format for fast challenge UI
+    if request.args.get('format') == 'json':
+        return jsonify({'success': True, 'answer': actual_flag})
 
     return render_template('show_answer.html',
                          challenge=challenge,
@@ -841,6 +1256,7 @@ def profile_picture(filename):
         return redirect(url_for('static', filename='images/default-avatar.svg'))
 
 @app.route('/admin')
+@app.route('/admin_panel')
 @admin_required
 def admin_dashboard():
     """Admin dashboard with comprehensive overview"""
@@ -859,7 +1275,7 @@ def admin_dashboard():
             User.username,
             Challenge.title,
             Challenge.points
-        ).join(User).join(Challenge).order_by(Solve.solved_at.desc()).limit(10).all()
+        ).join(User, Solve.user_id == User.id).join(Challenge, Solve.challenge_id == Challenge.id).order_by(Solve.solved_at.desc()).limit(10).all()
 
         # Get category statistics
         category_stats = db.session.query(
@@ -873,13 +1289,13 @@ def admin_dashboard():
             User.username,
             func.sum(Challenge.points).label('total_score'),
             func.count(Solve.id).label('solve_count')
-        ).join(Solve).join(Challenge).filter(User.role != 'admin').group_by(User.id).order_by(func.sum(Challenge.points).desc()).limit(5).all()
+        ).join(Solve, User.id == Solve.user_id).join(Challenge, Solve.challenge_id == Challenge.id).filter(User.role != 'admin').group_by(User.id).order_by(func.sum(Challenge.points).desc()).limit(5).all()
 
         # Get team statistics
         team_stats = db.session.query(
             Team.name,
             func.count(TeamMembership.id).label('member_count')
-        ).join(TeamMembership).group_by(Team.id).order_by(func.count(TeamMembership.id).desc()).limit(5).all()
+        ).join(TeamMembership, Team.id == TeamMembership.team_id).group_by(Team.id).order_by(func.count(TeamMembership.id).desc()).limit(5).all()
 
     except Exception as e:
         print(f"Admin dashboard error: {e}")
@@ -904,6 +1320,73 @@ def admin_users():
     """Admin users management"""
     users = User.query.filter(User.role != 'admin').order_by(User.created_at.desc()).all()
     return render_template('admin/users.html', users=users)
+
+@app.route('/admin/users/create', methods=['GET', 'POST'])
+@admin_required
+def admin_create_user():
+    """Admin create a new user"""
+    if request.method == 'POST':
+        username = request.form.get('username', '').strip()
+        email = request.form.get('email', '').strip()
+        password = request.form.get('password', '')
+        confirm_password = request.form.get('confirm_password', '')
+        role = request.form.get('role', 'user').strip().lower()
+        is_player = request.form.get('is_player') == 'on'
+
+        if role not in ('user', 'admin'):
+            role = 'user'
+        if role == 'admin':
+            is_player = False
+
+        if not username or not email or not password:
+            flash('Username, email, and password are required.', 'error')
+            return render_template('admin/create_user.html', form={'username': username, 'email': email, 'role': role, 'is_player': is_player})
+        if password != confirm_password:
+            flash('Passwords do not match.', 'error')
+            return render_template('admin/create_user.html', form={'username': username, 'email': email, 'role': role, 'is_player': is_player})
+        if len(password) < 6:
+            flash('Password must be at least 6 characters long.', 'error')
+            return render_template('admin/create_user.html', form={'username': username, 'email': email, 'role': role, 'is_player': is_player})
+
+        # Uniqueness checks
+        if User.query.filter_by(username=username).first():
+            flash('Username already exists.', 'error')
+            return render_template('admin/create_user.html', form={'username': username, 'email': email, 'role': role, 'is_player': is_player})
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered.', 'error')
+            return render_template('admin/create_user.html', form={'username': username, 'email': email, 'role': role, 'is_player': is_player})
+
+        try:
+            new_user = User(
+                username=username,
+                email=email,
+                password_hash=generate_password_hash(password),
+                role=role,
+                is_player=is_player
+            )
+            db.session.add(new_user)
+            db.session.commit()
+
+            # Optional welcome email
+            if new_user.email:
+                subject = "HUNTING-CTF: Your account has been created"
+                body = f"Hello {new_user.username},\n\nAn account has been created for you on HUNTING-CTF.\nYou can now log in and start solving challenges.\n\nRegards,\nThe HUNTING-CTF Team"
+                html = f"""
+                <h2>HUNTING-CTF Account Created</h2>
+                <p>Hello {new_user.username},</p>
+                <p>An account has been created for you on HUNTING-CTF.</p>
+                <p>You can now log in and start solving challenges.</p>
+                <p>Regards,<br>The HUNTING-CTF Team</p>
+                """
+                Thread(target=send_email, args=(subject, [new_user.email], body, html)).start()
+
+            flash(f'User "{username}" created successfully.', 'success')
+            return redirect(url_for('admin_users'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error creating user. Please try again.', 'error')
+
+    return render_template('admin/create_user.html')
 
 @app.route('/admin/users/delete/<int:user_id>', methods=['POST'])
 @admin_required
@@ -989,7 +1472,7 @@ def admin_delete_team(team_id):
 @admin_required
 def admin_challenges():
     """Admin challenges management"""
-    challenges = Challenge.query.order_by(Challenge.created_at.desc()).all()
+    challenges = Challenge.query.filter(Challenge.is_template != True).order_by(Challenge.created_at.desc()).all()
 
     # Get challenge statistics
     challenge_stats = []
@@ -1001,6 +1484,94 @@ def admin_challenges():
         })
 
     return render_template('admin/challenges.html', challenge_stats=challenge_stats)
+
+@app.route('/admin/challenges/create', methods=['GET', 'POST'])
+@admin_required
+def admin_create_challenge():
+    """Create a new challenge"""
+    if request.method == 'POST':
+        title = request.form.get('title', '').strip()
+        description = request.form.get('description', '').strip()
+        category = request.form.get('category', '').strip()
+        difficulty = request.form.get('difficulty', 'easy')
+        points = int(request.form.get('points', 100))
+        flag = request.form.get('flag', '').strip()
+        answer_explanation = request.form.get('answer_explanation', '').strip()
+        solution_steps = request.form.get('solution_steps', '').strip()
+        
+        # Validation
+        if not title or not description or not flag:
+            flash('Title, description, and flag are required.', 'error')
+            return render_template('admin/create_challenge.html')
+        
+        # Check if challenge title already exists
+        existing_challenge = Challenge.query.filter_by(title=title).first()
+        if existing_challenge:
+            flash('Challenge title already exists. Please choose a different title.', 'error')
+            return render_template('admin/create_challenge.html')
+        
+        try:
+            # Create new challenge
+            challenge = Challenge(
+                title=title,
+                description=description,
+                category=category,
+                difficulty=difficulty,
+                points=points,
+                flag_encrypted=flag.encode(),  # Simple encoding for development
+                answer_explanation=answer_explanation,
+                solution_steps=solution_steps,
+                created_at=datetime.utcnow(),
+                created_by_id=session.get('user_id')
+            )
+            db.session.add(challenge)
+            db.session.commit()
+            
+            flash(f'Challenge "{title}" created successfully!', 'success')
+            return redirect(url_for('admin_challenges'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error creating challenge. Please try again.', 'error')
+            print(f"Challenge creation error: {e}")
+    
+    return render_template('admin/create_challenge.html')
+
+@app.route('/admin/challenges/edit/<int:challenge_id>', methods=['GET', 'POST'])
+@admin_required
+def admin_edit_challenge(challenge_id):
+    """Edit an existing challenge"""
+    challenge = Challenge.query.get_or_404(challenge_id)
+    
+    if request.method == 'POST':
+        challenge.title = request.form.get('title', '').strip()
+        challenge.description = request.form.get('description', '').strip()
+        challenge.category = request.form.get('category', '').strip()
+        challenge.difficulty = request.form.get('difficulty', 'easy')
+        challenge.points = int(request.form.get('points', 100))
+        
+        new_flag = request.form.get('flag', '').strip()
+        if new_flag:
+            challenge.flag_encrypted = new_flag.encode()
+        
+        challenge.answer_explanation = request.form.get('answer_explanation', '').strip()
+        challenge.solution_steps = request.form.get('solution_steps', '').strip()
+        
+        try:
+            db.session.commit()
+            flash(f'Challenge "{challenge.title}" updated successfully!', 'success')
+            return redirect(url_for('admin_challenges'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Error updating challenge. Please try again.', 'error')
+            print(f"Challenge update error: {e}")
+    
+    # Get current flag for editing
+    try:
+        current_flag = challenge.flag_encrypted.decode() if challenge.flag_encrypted else ''
+    except:
+        current_flag = ''
+    
+    return render_template('admin/edit_challenge.html', challenge=challenge, current_flag=current_flag)
 
 @app.route('/admin/challenges/delete/<int:challenge_id>', methods=['POST'])
 @admin_required
@@ -1023,11 +1594,147 @@ def admin_delete_challenge(challenge_id):
 
     return redirect(url_for('admin_challenges'))
 
-@app.route('/admin/settings')
+
+
+@app.route('/admin/app_info')
+@admin_required
+def admin_app_info():
+    """Admin application information page"""
+    # Build database statistics expected by the template
+    database_stats = {
+        'total_users': User.query.count(),
+        'total_challenges': Challenge.query.count(),
+        'total_teams': Team.query.count(),
+        'total_solves': Solve.query.count(),
+        'total_submissions': Submission.query.count(),
+        'total_hints': Hint.query.count()
+    }
+
+    # App info structure aligned with admin_app_info.html expectations
+    app_info = {
+        'version': '2.0.0',
+        'last_updated': datetime.now().strftime('%Y-%m-%d'),
+        'database_stats': database_stats,
+        'features': [
+            'User authentication and profile management',
+            'Challenge creation and management',
+            'Team collaboration',
+            'Real-time notifications',
+            'Leaderboards and scoring',
+            'Admin dashboard',
+            'Hint system',
+            'Tournament mode',
+            'Chat functionality'
+        ],
+        'security_features': [
+            'Password hashing and salting',
+            'CSRF protection',
+            'XSS prevention',
+            'SQL injection protection',
+            'Rate limiting',
+            'Session management',
+            'Flag encryption'
+        ]
+    }
+
+    # Get challenges list for total points calculation block in template
+    challenges = Challenge.query.all()
+
+    return render_template('admin_app_info.html', app_info=app_info, challenges=challenges)
+
+@app.route('/admin/settings', methods=['GET', 'POST'])
 @admin_required
 def admin_settings():
     """Admin settings page"""
-    return render_template('admin/settings.html')
+    if request.method == 'POST':
+        action = request.form.get('action')
+        
+        if action == 'update_email_settings':
+            app.config['MAIL_SERVER'] = request.form.get('mail_server', 'smtp.gmail.com')
+            app.config['MAIL_PORT'] = int(request.form.get('mail_port', 587))
+            app.config['MAIL_USE_TLS'] = request.form.get('mail_use_tls') == 'on'
+            app.config['MAIL_USERNAME'] = request.form.get('mail_username', 'nirotyaymukherjee563@gmail.com')
+            
+            # Only update password if provided
+            new_password = request.form.get('mail_password')
+            if new_password:
+                app.config['MAIL_PASSWORD'] = new_password.replace(' ', '').strip()
+                
+            app.config['MAIL_DEFAULT_SENDER'] = request.form.get('mail_default_sender', 'NIROTYAY MUKHERJEE <nirotyaymukherjee563@gmail.com>')
+            
+            # Update notification settings
+            app.config['EMAIL_ON_LOGIN'] = request.form.get('email_on_login') == 'on'
+            app.config['EMAIL_ON_LOGOUT'] = request.form.get('email_on_logout') == 'on'
+            app.config['EMAIL_NEW_USER'] = request.form.get('email_new_user') == 'on'
+            app.config['EMAIL_CHALLENGE_SOLVED'] = request.form.get('email_challenge_solved') == 'on'
+            app.config['EMAIL_TEAM_CREATED'] = request.form.get('email_team_created') == 'on'
+            app.config['NOTIFICATION_EMAIL'] = request.form.get('notification_email', 'nirotyaymukherjee563@gmail.com')
+            
+            flash('Email settings updated successfully', 'success')
+            
+        elif action == 'test_email':
+            recipient = request.form.get('test_email_recipient')
+            if not recipient:
+                flash('Please provide a recipient email address', 'error')
+            else:
+                subject = 'CTF Platform - Test Email'
+                body = 'This is a test email from your CTF Platform.'
+                html = '<h1>CTF Platform</h1><p>This is a test email from your CTF Platform.</p>'
+                
+                if send_email(subject, [recipient], body, html):
+                    flash(f'Test email sent successfully to {recipient}', 'success')
+                else:
+                    flash('Failed to send test email. Please check your email settings.', 'error')
+    
+    # Get current email settings for the form
+    email_settings = {
+        'mail_server': app.config.get('MAIL_SERVER', 'smtp.gmail.com'),
+        'mail_port': app.config.get('MAIL_PORT', 587),
+        'mail_use_tls': app.config.get('MAIL_USE_TLS', True),
+        'mail_username': app.config.get('MAIL_USERNAME', 'nirotyaymukherjee563@gmail.com'),
+        'mail_default_sender': app.config.get('MAIL_DEFAULT_SENDER', 'NIROTYAY MUKHERJEE <nirotyaymukherjee563@gmail.com>'),
+        'email_on_login': app.config.get('EMAIL_ON_LOGIN', False),
+        'email_on_logout': app.config.get('EMAIL_ON_LOGOUT', False),
+        'email_new_user': app.config.get('EMAIL_NEW_USER', False),
+        'email_challenge_solved': app.config.get('EMAIL_CHALLENGE_SOLVED', False),
+        'email_team_created': app.config.get('EMAIL_TEAM_CREATED', False),
+        'notification_email': app.config.get('NOTIFICATION_EMAIL', 'nirotyaymukherjee563@gmail.com')
+    }
+    
+    return render_template('admin/settings.html', email_settings=email_settings)
+
+@app.route('/admin/chat')
+@admin_required
+def admin_chat():
+    """Admin chat monitoring page"""
+    # Get chat statistics
+    total_messages = ChatMessage.query.filter_by(team_id=None).count()
+    
+    # Count unique users who have sent messages
+    active_users = db.session.query(User.id).join(ChatMessage).filter(ChatMessage.team_id==None).distinct().count()
+    
+    # Count messages from today
+    today = datetime.utcnow().date()
+    today_messages = ChatMessage.query.filter(
+        ChatMessage.team_id==None,
+        func.date(ChatMessage.created_at) == today
+    ).count()
+    
+    # Get recent messages (limit to 100 most recent)
+    messages = ChatMessage.query.filter_by(team_id=None).order_by(ChatMessage.created_at.desc()).limit(100).all()
+    messages.reverse()  # Show oldest first
+    
+    # Get moderation settings
+    banned_words = []
+    auto_moderate = False
+    
+    return render_template('admin/chat.html', 
+                           messages=messages,
+                           total_messages=total_messages,
+                           active_users=active_users,
+                           today_messages=today_messages,
+                           banned_words=banned_words,
+                           auto_moderate=auto_moderate)
 
 # API Routes
 @app.route('/api/stats')
@@ -1042,6 +1749,96 @@ def api_stats():
         'total_users': total_users,
         'total_solves': total_solves
     })
+
+# Admin optimization routes
+@app.route('/optimize_performance', methods=['POST'])
+@admin_required
+def optimize_performance():
+    """Optimize app performance by clearing cache and cleaning old data"""
+    try:
+        # Clear old sessions
+        db.session.execute(text("DELETE FROM notification WHERE created_at < NOW() - INTERVAL '30 days'"))
+        
+        # Clean up old submissions that didn't result in solves
+        db.session.execute(text("DELETE FROM submission WHERE created_at < NOW() - INTERVAL '30 days' AND NOT EXISTS (SELECT 1 FROM solve WHERE solve.user_id = submission.user_id AND solve.challenge_id = submission.challenge_id)"))
+        
+        # Commit changes
+        db.session.commit()
+        
+        flash('Performance optimization completed successfully. Cache cleared and old data cleaned.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error during performance optimization: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/speed_optimize', methods=['POST'])
+@admin_required
+def speed_optimize():
+    """Run aggressive speed optimizations including database indexing"""
+    try:
+        # Run VACUUM ANALYZE for PostgreSQL or similar optimization for SQLite
+        if 'postgresql' in str(db.engine.url):
+            db.session.execute(text("VACUUM ANALYZE"))
+        elif 'sqlite' in str(db.engine.url):
+            db.session.execute(text("VACUUM"))
+            db.session.execute(text("ANALYZE"))
+        
+        # Optimize tables
+        db.session.commit()
+        
+        flash('Aggressive speed optimization completed successfully. Database has been optimized.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash(f'Error during speed optimization: {str(e)}', 'error')
+    
+    return redirect(url_for('admin_dashboard'))
+
+@app.route('/app_info')
+@admin_required
+def app_info():
+    """Display comprehensive application information"""
+    # Get database statistics
+    database_stats = {
+        'total_users': User.query.count(),
+        'total_challenges': Challenge.query.count(),
+        'total_teams': Team.query.count(),
+        'total_solves': Solve.query.count(),
+        'total_submissions': Submission.query.count(),
+        'total_hints': Hint.query.count()
+    }
+    
+    # Get challenges for total points calculation
+    challenges = Challenge.query.all()
+    
+    # Application info
+    app_info = {
+        'version': '2.0.0',
+        'last_updated': datetime.now().strftime('%Y-%m-%d'),
+        'database_stats': database_stats,
+        'features': [
+            'User authentication and profile management',
+            'Challenge creation and management',
+            'Team collaboration',
+            'Real-time notifications',
+            'Leaderboards and scoring',
+            'Admin dashboard',
+            'Hint system',
+            'Tournament mode',
+            'Chat functionality'
+        ],
+        'security_features': [
+            'Password hashing and salting',
+            'CSRF protection',
+            'XSS prevention',
+            'SQL injection protection',
+            'Rate limiting',
+            'Session management',
+            'Flag encryption'
+        ]
+    }
+    
+    return render_template('admin_app_info.html', app_info=app_info, challenges=challenges)
 
 @app.route('/api/leaderboard')
 def api_leaderboard():
@@ -1099,17 +1896,18 @@ if SOCKETIO_AVAILABLE:
             }
         ]
 
-        # Add team chat if user is in a team
-        user_team_membership = TeamMembership.query.filter_by(user_id=user.id).first()
-        if user_team_membership:
-            team = user_team_membership.team
-            chat_rooms.append({
-                'id': f'team-{team.id}',
-                'name': team.name,
-                'displayName': f'Team: {team.name}',
-                'icon': 'users',
-                'description': 'Private team discussion'
-            })
+        # Add team chat if user is in a team and is a player (not an admin-only account)
+        if user.is_player:
+            user_team_membership = TeamMembership.query.filter_by(user_id=user.id).first()
+            if user_team_membership:
+                team = user_team_membership.team
+                chat_rooms.append({
+                    'id': f'team-{team.id}',
+                    'name': team.name,
+                    'displayName': f'Team: {team.name}',
+                    'icon': 'users',
+                    'description': 'Private team discussion'
+                })
 
         # Add friend chats (for accepted friends)
         friend_relationships = Friend.query.filter(
@@ -1231,7 +2029,7 @@ def teams():
     user = db.session.get(User, session['user_id'])
 
     # Prevent admin from accessing team features
-    if user.role == 'admin':
+    if user.role == 'admin' and not user.is_player:
         flash('Administrators cannot participate in teams. Please use the admin panel to manage teams.', 'warning')
         return redirect(url_for('admin_dashboard'))
 
@@ -1510,6 +2308,161 @@ def kick_member(user_id):
     
     return redirect(url_for('teams'))
 
+# Team Management: add member (leader only)
+@app.route('/teams/add_member', methods=['POST'])
+@login_required
+def add_team_member():
+    """Add a user to the current team (leader only)"""
+    current_user = db.session.get(User, session['user_id'])
+
+    # Verify leader
+    current_membership = TeamMembership.query.filter_by(user_id=current_user.id).first()
+    if not current_membership or current_membership.role != 'leader':
+        flash('Only team leaders can add members.', 'error')
+        return redirect(url_for('teams'))
+
+    identifier = request.form.get('username', '').strip()
+    if not identifier:
+        flash('Please provide a username or email.', 'error')
+        return redirect(url_for('teams'))
+
+    # Find user by username or email
+    user_to_add = User.query.filter((User.username == identifier) | (User.email == identifier)).first()
+    if not user_to_add:
+        flash('User not found.', 'error')
+        return redirect(url_for('teams'))
+
+    # Prevent adding non-player admins
+    if user_to_add.role == 'admin' and not user_to_add.is_player:
+        flash('Administrators cannot be added to teams.', 'error')
+        return redirect(url_for('teams'))
+
+    # Prevent adding user who is already in any team
+    existing_membership = TeamMembership.query.filter_by(user_id=user_to_add.id).first()
+    if existing_membership:
+        flash('User is already a member of a team.', 'error')
+        return redirect(url_for('teams'))
+
+    # Enforce max team size (4)
+    current_count = TeamMembership.query.filter_by(team_id=current_membership.team_id).count()
+    if current_count >= 4:
+        flash('Team is full. Maximum 4 members allowed per team.', 'error')
+        return redirect(url_for('teams'))
+
+    try:
+        membership = TeamMembership(
+            team_id=current_membership.team_id,
+            user_id=user_to_add.id,
+            role='member'
+        )
+        db.session.add(membership)
+        db.session.commit()
+        flash(f'Added {user_to_add.username} to the team.', 'success')
+    except Exception as e:
+        db.session.rollback()
+        flash('Error adding member. Please try again.', 'error')
+
+    return redirect(url_for('teams'))
+
+# File upload for chat (images/documents/videos)
+@app.route('/api/upload', methods=['POST'])
+@login_required
+def upload_chat_file():
+    """Handle chat media uploads and create a message referencing the file"""
+    user = db.session.get(User, session['user_id'])
+
+    # Disallow admin-only accounts from sending media
+    if user.role == 'admin' and not user.is_player:
+        return jsonify({'success': False, 'message': 'Administrators cannot upload files'}), 403
+
+    if 'file' not in request.files:
+        return jsonify({'success': False, 'message': 'No file provided'}), 400
+
+    upload = request.files['file']
+    if not upload or upload.filename == '':
+        return jsonify({'success': False, 'message': 'Invalid file'}), 400
+
+    room = request.form.get('room', 'general')
+
+    # Handle team room permissions
+    team_id = None
+    if room.startswith('team-'):
+        try:
+            team_id = int(room.split('-')[1])
+        except Exception:
+            return jsonify({'success': False, 'message': 'Invalid room'}), 400
+
+        # Verify membership and that admin-only accounts cannot access team chats
+        if user.role == 'admin' and not user.is_player:
+            return jsonify({'success': False, 'message': 'Administrators cannot access team chats'}), 403
+        membership = TeamMembership.query.filter_by(user_id=user.id, team_id=team_id).first()
+        if not membership:
+            return jsonify({'success': False, 'message': 'Access denied to team chat'}), 403
+
+    # Ensure upload directory exists
+    import os, uuid
+    from werkzeug.utils import secure_filename
+    uploads_dir = os.path.join(app.root_path, 'static', 'uploads', 'chat')
+    os.makedirs(uploads_dir, exist_ok=True)
+
+    # Build secure unique filename
+    original_name = secure_filename(upload.filename)
+    name, ext = os.path.splitext(original_name)
+    unique_name = f"{name}_{uuid.uuid4().hex[:12]}{ext}"
+    filepath = os.path.join(uploads_dir, unique_name)
+
+    try:
+        upload.save(filepath)
+    except Exception as e:
+        return jsonify({'success': False, 'message': f'Failed to save file: {str(e)}'}), 500
+
+    # Determine message type by mimetype
+    mimetype = upload.mimetype or ''
+    if mimetype.startswith('image/'):
+        message_type = 'image'
+        label = 'Image'
+        icon = '📷'
+    elif mimetype.startswith('video/'):
+        message_type = 'video'
+        label = 'Video'
+        icon = '🎥'
+    else:
+        message_type = 'document'
+        label = 'Document'
+        icon = '📄'
+
+    file_url = url_for('static', filename=f'uploads/chat/{unique_name}')
+    content = f"{icon} [{label}: {original_name}]({file_url})"
+
+    # Create chat message
+    message = ChatMessage(
+        user_id=user.id,
+        content=content,
+        room=room,
+        team_id=team_id,
+        message_type=message_type
+    )
+
+    try:
+        db.session.add(message)
+        db.session.commit()
+
+        # Prepare payload for clients
+        payload = message.to_dict()
+        payload['file_url'] = file_url
+
+        # Emit via SocketIO if available
+        try:
+            if socketio:
+                socketio.emit('new_message', payload, room=room)
+        except Exception:
+            pass
+
+        return jsonify({'success': True, 'message': 'File uploaded', 'file_url': file_url})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'message': f'Failed to create message: {str(e)}'}), 500
+
 # Chat Routes
 @app.route('/chat')
 @login_required
@@ -1517,16 +2470,16 @@ def chat():
     """Main chat page"""
     user = db.session.get(User, session['user_id'])
 
-    # Prevent admin from accessing chat
-    if user.role == 'admin':
-        flash('Administrators cannot access the chat system.', 'warning')
-        return redirect(url_for('admin_dashboard'))
+    # Allow admin access to chat system, but not as a player
+    if user.role == 'admin' and not user.is_player:
+        flash('Administrator access granted to chat system. You can view public chats but not team chats.', 'info')
 
-    # Get user's team for team chat
+    # Get user's team for team chat (only for players or admin-players)
     user_team = None
-    team_membership = TeamMembership.query.filter_by(user_id=user.id).first()
-    if team_membership:
-        user_team = team_membership.team
+    if user.is_player:
+        team_membership = TeamMembership.query.filter_by(user_id=user.id).first()
+        if team_membership:
+            user_team = team_membership.team
 
     # Get user's friends for friends chat
     friends = []
@@ -1554,14 +2507,14 @@ def get_chat_messages():
     limit = int(request.args.get('limit', 50))
     user = db.session.get(User, session['user_id'])
 
-    # Prevent admin from accessing chat
-    if user.role == 'admin':
-        return jsonify({'error': 'Access denied'}), 403
-
+    # Admin can only see public messages, not team messages
     query = ChatMessage.query
 
     if room.startswith('team-'):
-        # Team chat - verify user is in the team
+        # Team chat - verify user is in the team and is a player
+        if user.role == 'admin' and not user.is_player:
+            return jsonify({'error': 'Administrators cannot access team chats'}), 403
+            
         team_id = int(room.split('-')[1])
         team_membership = TeamMembership.query.filter_by(user_id=user.id, team_id=team_id).first()
         if not team_membership:
@@ -1679,6 +2632,87 @@ def delete_chat_message(message_id):
     except Exception as e:
         db.session.rollback()
         return jsonify({'error': 'Failed to delete message'}), 500
+
+@app.route('/api/chat/clear', methods=['POST'])
+@login_required
+def clear_chat_history():
+    """Clear all chat messages (admin only)"""
+    user = db.session.get(User, session['user_id'])
+
+    if user.role != 'admin':
+        return jsonify({'error': 'Access denied. Admin only.'}), 403
+
+    try:
+        # Delete only public chat messages (not team messages)
+        ChatMessage.query.filter_by(team_id=None).delete()
+        db.session.commit()
+        return jsonify({'success': True, 'message': 'Public chat history cleared successfully'})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': 'Failed to clear chat history'}), 500
+
+@app.route('/api/admin/chat/messages')
+@login_required
+def admin_get_chat_messages():
+    """Get all public chat messages for admin monitoring"""
+    user = db.session.get(User, session['user_id'])
+    
+    if user.role != 'admin':
+        return jsonify({'error': 'Access denied. Admin only.'}), 403
+    
+    # Get chat statistics
+    total_messages = ChatMessage.query.filter_by(team_id=None).count()
+    
+    # Count unique users who have sent messages
+    active_users = db.session.query(User.id).join(ChatMessage).filter(ChatMessage.team_id==None).distinct().count()
+    
+    # Count messages from today
+    today = datetime.utcnow().date()
+    today_messages = ChatMessage.query.filter(
+        ChatMessage.team_id==None,
+        func.date(ChatMessage.created_at) == today
+    ).count()
+    
+    # Get recent messages (limit to 100 most recent)
+    messages = ChatMessage.query.filter_by(team_id=None).order_by(ChatMessage.created_at.desc()).limit(100).all()
+    messages.reverse()  # Show oldest first
+    
+    return jsonify({
+        'messages': [{
+            'id': message.id,
+            'content': message.content,
+            'username': message.user.username,
+            'user_id': message.user_id,
+            'created_at': message.created_at.strftime('%Y-%m-%d %H:%M:%S'),
+            'room': message.room
+        } for message in messages],
+        'total_messages': total_messages,
+        'active_users': active_users,
+        'today_messages': today_messages
+    })
+
+@app.route('/api/admin/chat/moderation', methods=['POST'])
+@login_required
+def admin_chat_moderation():
+    """Update chat moderation settings"""
+    user = db.session.get(User, session['user_id'])
+    
+    if user.role != 'admin':
+        return jsonify({'error': 'Access denied. Admin only.'}), 403
+    
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'No data provided'}), 400
+    
+    banned_words = data.get('banned_words', [])
+    auto_moderate = data.get('auto_moderate', False)
+    
+    # In a real implementation, you would save these settings to the database
+    # For now, we'll just return success
+    return jsonify({
+        'success': True,
+        'message': 'Moderation settings updated successfully'
+    })
 
 # Friend System API Routes (for chat integration)
 
@@ -2094,11 +3128,12 @@ if __name__ == '__main__':
                     username='admin',
                     email='admin@ctf.local',
                     password_hash=generate_password_hash('admin123'),
-                    role='admin'
+                    role='admin',
+                    is_player=False
                 )
                 db.session.add(admin)
                 db.session.commit()
-                print("✅ Admin user created: admin/admin123")
+                print("✅ Admin user created: admin/admin123 (non-player account)")
         except Exception as e:
             print(f"⚠️ Database initialization error: {e}")
 

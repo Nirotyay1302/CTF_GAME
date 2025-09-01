@@ -1,0 +1,223 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Challenge Management - Admin Panel{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item active">Challenges</li>
+{% endblock %}
+
+{% block content %}
+<!-- Challenges Header -->
+<div class="admin-header">
+    <div class="admin-header-content">
+        <div class="admin-title">
+            <h1><i class="fas fa-flag"></i> Challenge Management</h1>
+            <p>Manage all CTF challenges</p>
+        </div>
+        <div class="admin-actions">
+            <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">
+                <i class="fas fa-arrow-left"></i> Back to Dashboard
+            </a>
+            <a href="/admin/challenges/create" class="btn btn-success">
+                <i class="fas fa-plus"></i> Create Challenge
+            </a>
+        </div>
+    </div>
+</div>
+
+<!-- Challenge Statistics -->
+<div class="stats-grid mb-4">
+    <div class="stat-card primary">
+        <div class="stat-icon">
+            <i class="fas fa-flag"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-number">{{ challenge_stats|length }}</div>
+            <div class="stat-label">Total Challenges</div>
+        </div>
+    </div>
+    
+    <div class="stat-card success">
+        <div class="stat-icon">
+            <i class="fas fa-check-circle"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-number">
+                {% set total_solves = 0 %}
+                {% for stat in challenge_stats %}
+                    {% set total_solves = total_solves + stat.solve_count %}
+                {% endfor %}
+                {{ total_solves }}
+            </div>
+            <div class="stat-label">Total Solves</div>
+        </div>
+    </div>
+
+    <div class="stat-card warning">
+        <div class="stat-icon">
+            <i class="fas fa-star"></i>
+        </div>
+        <div class="stat-content">
+            <div class="stat-number">
+                {% set total_points = 0 %}
+                {% for stat in challenge_stats %}
+                    {% set total_points = total_points + stat.challenge.points %}
+                {% endfor %}
+                {{ total_points }}
+            </div>
+            <div class="stat-label">Total Points</div>
+        </div>
+    </div>
+</div>
+
+<!-- Challenge List -->
+<div class="admin-card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5><i class="fas fa-list"></i> Challenge List</h5>
+        <div class="input-group" style="max-width: 300px;">
+            <input type="text" id="challenge-search" class="form-control" placeholder="Search challenges...">
+            <span class="input-group-text"><i class="fas fa-search"></i></span>
+        </div>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-hover">
+            <thead>
+                <tr>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Difficulty</th>
+                    <th>Points</th>
+                    <th>Solves</th>
+                    <th>Created</th>
+                    <th>Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for stat in challenge_stats %}
+                <tr>
+                    <td>{{ stat.challenge.title }}</td>
+                    <td>
+                        <span class="badge bg-secondary">{{ stat.challenge.category }}</span>
+                    </td>
+                    <td>
+                        <span class="badge 
+                            {% if stat.challenge.difficulty == 'easy' %}bg-success
+                            {% elif stat.challenge.difficulty == 'medium' %}bg-warning
+                            {% elif stat.challenge.difficulty == 'hard' %}bg-danger
+                            {% else %}bg-dark{% endif %}">
+                            {{ stat.challenge.difficulty }}
+                        </span>
+                    </td>
+                    <td>{{ stat.challenge.points }}</td>
+                    <td>{{ stat.solve_count }}</td>
+                    <td>{{ stat.challenge.created_at.strftime('%Y-%m-%d') }}</td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{{ url_for('admin_edit_challenge', challenge_id=stat.challenge.id) }}" class="btn btn-primary">
+                                <i class="fas fa-edit"></i>
+                            </a>
+                            <button type="button" class="btn btn-danger delete-challenge" data-id="{{ stat.challenge.id }}" data-title="{{ stat.challenge.title }}">
+                                <i class="fas fa-trash"></i>
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+                
+                {% if not challenge_stats %}
+                <tr>
+                    <td colspan="7" class="text-center py-4">
+                        <div class="empty-state">
+                            <i class="fas fa-flag fa-3x text-muted mb-3"></i>
+                            <h5>No challenges found</h5>
+                            <p class="text-muted">Create your first challenge to get started</p>
+                            <a href="/admin/challenges/create" class="btn btn-primary">
+                                <i class="fas fa-plus"></i> Create Challenge
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endif %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Delete Challenge Modal -->
+<div class="modal fade" id="deleteModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Confirm Deletion</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <p>Are you sure you want to delete the challenge <strong id="delete-challenge-title"></strong>?</p>
+                <p class="text-danger"><i class="fas fa-exclamation-triangle"></i> This action cannot be undone and will remove all associated solves.</p>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <form id="delete-form" method="POST">
+                    <button type="submit" class="btn btn-danger">Delete Challenge</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- JavaScript for Challenge Management -->
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        // Delete challenge functionality
+        const deleteButtons = document.querySelectorAll('.delete-challenge');
+        const deleteForm = document.getElementById('delete-form');
+        const deleteTitleSpan = document.getElementById('delete-challenge-title');
+        
+        deleteButtons.forEach(button => {
+            button.addEventListener('click', function() {
+                const challengeId = this.getAttribute('data-id');
+                const challengeTitle = this.getAttribute('data-title');
+                
+                deleteForm.action = `/admin/challenges/delete/${challengeId}`;
+                deleteTitleSpan.textContent = challengeTitle;
+                
+                new bootstrap.Modal(document.getElementById('deleteModal')).show();
+            });
+        });
+        
+        // Challenge search functionality
+        const searchInput = document.getElementById('challenge-search');
+        const challengeRows = document.querySelectorAll('tbody tr');
+        
+        searchInput.addEventListener('input', function() {
+            const searchTerm = this.value.toLowerCase();
+            
+            challengeRows.forEach(row => {
+                const title = row.cells[0].textContent.toLowerCase();
+                const category = row.cells[1].textContent.toLowerCase();
+                
+                if (title.includes(searchTerm) || category.includes(searchTerm)) {
+                    row.style.display = '';
+                } else {
+                    row.style.display = 'none';
+                }
+            });
+        });
+        
+        // Empty state create button
+        const emptyCreateBtn = document.getElementById('empty-create-btn');
+        if (emptyCreateBtn) {
+            emptyCreateBtn.addEventListener('click', function() {
+                // Redirect to challenge creation page
+                window.location.href = '/admin/challenges/create';
+            });
+        }
+        
+        // Create challenge button
+        const createChallengeBtn = document.getElementById('create-challenge-btn');
+        createChallengeBtn.addEventListener('click', function() {
+            window.location.href = '/admin/challenges/create';
+        });
+    });
+</script>
+{% endblock %}

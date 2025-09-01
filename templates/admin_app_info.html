@@ -188,15 +188,15 @@
         </div>
 
         <div class="version-info">
-            <h2>Version {{ app_info.version }}</h2>
-            <p>Last Updated: {{ app_info.last_updated }}</p>
+            <h2>Version {{ app_info.get('version', 'N/A') }}</h2>
+            <p>Last Updated: {{ app_info.get('last_updated', 'N/A') }}</p>
         </div>
 
         <div class="info-grid">
             <!-- Database Statistics -->
             <div class="info-card">
                 <h3>📊 Database Statistics</h3>
-                {% for key, value in app_info.database_stats.items() %}
+                {% for key, value in app_info.get('database_stats', {}).items() %}
                 <div class="stat-item">
                     <span class="stat-label">{{ key.replace('_', ' ').title() }}</span>
                     <span class="stat-value">{{ value }}</span>
@@ -208,7 +208,7 @@
             <div class="info-card">
                 <h3>🎮 Available Features</h3>
                 <ul class="feature-list">
-                    {% for feature in app_info.features %}
+                    {% for feature in app_info.get('features', []) %}
                     <li>{{ feature }}</li>
                     {% endfor %}
                 </ul>
@@ -218,7 +218,7 @@
             <div class="info-card">
                 <h3>🔒 Security Features</h3>
                 <ul class="feature-list">
-                    {% for security_feature in app_info.security_features %}
+                    {% for security_feature in app_info.get('security_features', []) %}
                     <li>{{ security_feature }}</li>
                     {% endfor %}
                 </ul>
@@ -285,7 +285,7 @@
         </div>
 
         <div style="text-align: center; margin-top: 30px;">
-            <a href="{{ url_for('admin_panel') }}" class="back-button">← Back to Admin Panel</a>
+            <a href="{{ url_for('admin_dashboard') }}" class="back-button">← Back to Admin Panel</a>
         </div>
     </div>
 

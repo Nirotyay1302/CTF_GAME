@@ -68,17 +68,7 @@
                     <div class="team-members">
                         {% for membership in user_team.memberships %}
                         <div class="member-item">
-                            <div class="member-avatar">
-                                {% if membership.user.profile_picture %}
-                                    <img src="{{ url_for('profile_picture', filename=membership.user.profile_picture) }}"
-                                         alt="{{ membership.user.username }}" class="rounded-circle">
-                                {% else %}
-                                    <div class="default-avatar">
-                                        {{ membership.user.username[0].upper() }}
-                                    </div>
-                                {% endif %}
-                            </div>
-                            <div class="member-info">
+                                                        <div class="member-info">
                                 <div class="member-name">{{ membership.user.username }}</div>
                                 <div class="member-role">
                                     {% if membership.role == 'leader' %}
@@ -152,6 +142,29 @@
                                         </form>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+
+                    {% if user_membership.role == 'leader' %}
+                    <div class="mt-4">
+                        <div class="card border-info">
+                            <div class="card-header bg-info text-white">
+                                <h6 class="mb-0"><i class="fas fa-user-plus"></i> Add Member</h6>
+                            </div>
+                            <div class="card-body">
+                                <form method="POST" action="/teams/add_member" class="row g-2">
+                                    <div class="col-md-8">
+                                        <input type="text" class="form-control" name="username" placeholder="Enter username or email" required>
+                                    </div>
+                                    <div class="col-md-4 d-grid">
+                                        <button type="submit" class="btn btn-info text-white">
+                                            <i class="fas fa-user-plus"></i> Add to Team
+                                        </button>
+                                    </div>
+                                </form>
+                                <div class="form-text">Only team leaders can add members. The user must not already be in a team.</div>
                             </div>
                         </div>
                     </div>

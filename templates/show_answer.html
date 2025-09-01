@@ -18,59 +18,59 @@
 
 <div class="row">
     <div class="col-12">
-        <div class="card">
-            <div class="card-header {% if solve %}bg-success{% else %}bg-info{% endif %} text-white">
-                <h4 class="mb-0">
+        <div class="card shadow-lg border-0">
+            <div class="card-header {% if solve %}bg-success{% else %}bg-info{% endif %} text-white py-3">
+                <h3 class="mb-0 fw-bold">
                     {% if solve %}
                     <i class="fas fa-trophy"></i> {{ challenge.title }} - Solution
                     {% else %}
                     <i class="fas fa-book"></i> {{ challenge.title }} - Educational Content
                     {% endif %}
-                </h4>
+                </h3>
             </div>
             <div class="card-body">
                 <!-- Challenge Info -->
-                <div class="row mb-4">
+                <div class="row mb-4 mt-3">
                     <div class="col-md-6">
-                        <span class="badge bg-secondary me-2">
+                        <span class="badge bg-secondary me-2 p-2 fs-6">
                             <i class="fas fa-tag"></i> {{ challenge.category|title }}
                         </span>
-                        <span class="badge 
+                        <span class="badge p-2 fs-6
                             {% if challenge.difficulty == 'easy' %}bg-success
                             {% elif challenge.difficulty == 'medium' %}bg-warning
                             {% elif challenge.difficulty == 'hard' %}bg-danger
                             {% else %}bg-dark{% endif %}">
                             <i class="fas fa-signal"></i> {{ challenge.difficulty|title }}
                         </span>
-                        <span class="badge bg-primary">{{ challenge.points }} points</span>
+                        <span class="badge bg-primary p-2 fs-6">{{ challenge.points }} points</span>
                     </div>
                     <div class="col-md-6 text-md-end">
                         {% if solve %}
-                        <small class="text-success">
+                        <div class="text-success fw-bold fs-5">
                             <i class="fas fa-trophy"></i> Solved on {{ solve.solved_at.strftime('%B %d, %Y at %I:%M %p') }}
-                        </small>
+                        </div>
                         {% else %}
-                        <small class="text-muted">
+                        <div class="text-muted fs-5">
                             <i class="fas fa-book"></i> Educational Content - Challenge not yet solved
-                        </small>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
 
                 <!-- Status Message -->
                 {% if not solve %}
-                <div class="alert alert-info">
-                    <h5><i class="fas fa-info-circle"></i> Educational Access</h5>
-                    <p class="mb-0">You're viewing the answer and explanation for learning purposes. Try solving the challenge yourself first for the best learning experience!</p>
+                <div class="alert alert-info shadow-sm border-start border-5 border-info">
+                    <h5 class="fw-bold"><i class="fas fa-info-circle"></i> Educational Access</h5>
+                    <p class="mb-0 fs-5">You're viewing the answer and explanation for learning purposes. Try solving the challenge yourself first for the best learning experience!</p>
                 </div>
                 {% endif %}
 
                 <!-- Flag Answer -->
-                <div class="alert alert-success">
-                    <h5><i class="fas fa-flag"></i> Correct Flag</h5>
-                    <div class="input-group">
-                        <input type="text" class="form-control" value="{{ actual_flag }}" readonly id="flagAnswer">
-                        <button class="btn btn-outline-secondary" type="button" onclick="copyFlag()">
+                <div class="alert alert-success shadow-sm border-start border-5 border-success mb-4">
+                    <h5 class="fw-bold"><i class="fas fa-flag"></i> Correct Flag</h5>
+                    <div class="input-group input-group-lg">
+                        <input type="text" class="form-control fw-bold font-monospace" value="{{ actual_flag }}" readonly id="flagAnswer">
+                        <button class="btn btn-outline-success" type="button" onclick="copyFlag()">
                             <i class="fas fa-copy"></i> Copy
                         </button>
                     </div>
@@ -78,12 +78,12 @@
 
                 <!-- Answer Explanation -->
                 {% if challenge.answer_explanation %}
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-lightbulb"></i> Explanation</h5>
+                <div class="card mb-4 shadow-sm border-primary border-top border-3">
+                    <div class="card-header bg-primary text-white">
+                        <h5 class="mb-0 fw-bold"><i class="fas fa-lightbulb"></i> Explanation</h5>
                     </div>
                     <div class="card-body">
-                        <div class="answer-explanation">
+                        <div class="answer-explanation fs-5 p-2">
                             {{ challenge.answer_explanation|nl2br|safe }}
                         </div>
                     </div>
@@ -92,12 +92,12 @@
 
                 <!-- Solution Steps -->
                 {% if challenge.solution_steps %}
-                <div class="card mb-4">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-list-ol"></i> Solution Steps</h5>
+                <div class="card mb-4 shadow-sm border-success border-top border-3">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0 fw-bold"><i class="fas fa-list-ol"></i> Solution Steps</h5>
                     </div>
                     <div class="card-body">
-                        <div class="solution-steps">
+                        <div class="solution-steps fs-5 p-2">
                             {{ challenge.solution_steps|nl2br|safe }}
                         </div>
                     </div>
@@ -105,29 +105,29 @@
                 {% endif %}
 
                 <!-- Challenge Description Reminder -->
-                <div class="card">
-                    <div class="card-header">
-                        <h5 class="mb-0"><i class="fas fa-info-circle"></i> Challenge Description</h5>
+                <div class="card shadow-sm border-secondary border-top border-3">
+                    <div class="card-header bg-secondary text-white">
+                        <h5 class="mb-0 fw-bold"><i class="fas fa-info-circle"></i> Challenge Description</h5>
                     </div>
                     <div class="card-body">
-                        <div class="challenge-description">
+                        <div class="challenge-description fs-5 p-2">
                             {{ challenge.description|nl2br|safe }}
                         </div>
                     </div>
                 </div>
             </div>
-            <div class="card-footer">
+            <div class="card-footer py-3">
                 <div class="d-flex justify-content-between">
-                    <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-secondary">
+                    <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-secondary btn-lg">
                         <i class="fas fa-arrow-left"></i> Back to Challenge
                     </a>
                     <div>
                         {% if not solve %}
-                        <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-primary me-2">
+                        <a href="{{ url_for('challenge_detail', challenge_id=challenge.id) }}" class="btn btn-primary btn-lg me-2">
                             <i class="fas fa-play"></i> Try Solving It
                         </a>
                         {% endif %}
-                        <a href="{{ url_for('challenges') }}" class="btn btn-outline-primary">
+                        <a href="{{ url_for('challenges') }}" class="btn btn-outline-primary btn-lg">
                             <i class="fas fa-puzzle-piece"></i> More Challenges
                         </a>
                     </div>
@@ -152,18 +152,18 @@ function copyFlag() {
         const copyBtn = event.target.closest('button');
         const originalHTML = copyBtn.innerHTML;
         copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
-        copyBtn.classList.remove('btn-outline-secondary');
+        copyBtn.classList.remove('btn-outline-success');
         copyBtn.classList.add('btn-success');
         
         setTimeout(() => {
             copyBtn.innerHTML = originalHTML;
             copyBtn.classList.remove('btn-success');
-            copyBtn.classList.add('btn-outline-secondary');
+            copyBtn.classList.add('btn-outline-success');
         }, 2000);
         
         // Show success message
         const alertDiv = document.createElement('div');
-        alertDiv.className = 'alert alert-success alert-dismissible fade show mt-2';
+        alertDiv.className = 'alert alert-success alert-dismissible fade show mt-2 shadow-sm';
         alertDiv.innerHTML = `
             <i class="fas fa-check-circle"></i> Flag copied to clipboard!
             <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
@@ -182,4 +182,44 @@ function copyFlag() {
     }
 }
 </script>
+
+<style>
+/* Additional styles for show_answer page */
+.answer-explanation, .solution-steps, .challenge-description {
+    line-height: 1.7;
+}
+
+.solution-steps {
+    background-color: #f8fff8;
+    border-radius: 8px;
+    padding: 15px !important;
+}
+
+.answer-explanation {
+    background-color: #f8f9ff;
+    border-radius: 8px;
+    padding: 15px !important;
+}
+
+.challenge-description {
+    background-color: #f8f8f8;
+    border-radius: 8px;
+    padding: 15px !important;
+}
+
+/* Make code blocks stand out */
+code, pre {
+    background-color: #272822;
+    color: #f8f8f2;
+    border-radius: 4px;
+    padding: 2px 5px;
+    font-family: 'Courier New', monospace;
+}
+
+pre {
+    padding: 15px;
+    margin: 15px 0;
+    overflow-x: auto;
+}
+</style>
 {% endblock %}

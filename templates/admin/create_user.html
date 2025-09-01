@@ -1,0 +1,59 @@
+{% extends "admin/base.html" %}
+
+{% block title %}Create User - Admin Panel{% endblock %}
+
+{% block breadcrumb %}
+<li class="breadcrumb-item"><a href="{{ url_for('admin_users') }}">Users</a></li>
+<li class="breadcrumb-item active">Create User</li>
+{% endblock %}
+
+{% block content %}
+<div class="admin-card">
+    <div class="card-header d-flex align-items-center">
+        <h3 class="mb-0"><i class="fas fa-user-plus me-2"></i>Create New User</h3>
+        <a href="{{ url_for('admin_users') }}" class="btn btn-outline-secondary ms-auto">
+            <i class="fas fa-arrow-left"></i> Back to Users
+        </a>
+    </div>
+    <div class="card-content">
+        <form method="POST" action="{{ url_for('admin_create_user') }}">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Username</label>
+                    <input type="text" name="username" class="form-control" placeholder="johndoe" required value="{{ (form.username if form else '') | default('', true) }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Email</label>
+                    <input type="email" name="email" class="form-control" placeholder="john@example.com" required value="{{ (form.email if form else '') | default('', true) }}">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Password</label>
+                    <input type="password" name="password" class="form-control" minlength="6" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Confirm Password</label>
+                    <input type="password" name="confirm_password" class="form-control" minlength="6" required>
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Role</label>
+                    <select name="role" class="form-select">
+                        <option value="user" {% if form and form.role == 'user' %}selected{% endif %}>User</option>
+                        <option value="admin" {% if form and form.role == 'admin' %}selected{% endif %}>Admin</option>
+                    </select>
+                </div>
+                <div class="col-md-6 d-flex align-items-end">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="is_player" id="isPlayer" {% if form and form.is_player %}checked{% else %}checked{% endif %}>
+                        <label class="form-check-label" for="isPlayer">
+                            Player account (can participate in challenges)
+                        </label>
+                    </div>
+                </div>
+            </div>
+            <div class="mt-4">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-save me-2"></i>Create User</button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endblock %}
