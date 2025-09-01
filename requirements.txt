@@ -17,6 +17,8 @@ psycopg==3.2.9
 # Production Server
 gunicorn==23.0.0
 eventlet==0.36.1
+gevent
+gevent-websocket
 
 
 
