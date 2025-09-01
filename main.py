@@ -160,6 +160,29 @@ def _load_encryption_key():
 ENCRYPTION_KEY = _load_encryption_key()
 cipher_suite = Fernet(ENCRYPTION_KEY)
 
+# Supabase configuration
+
+def _sb_config():
+    return {
+        'url': os.environ.get('SUPABASE_URL'),
+        'service_key': os.environ.get('SUPABASE_SERVICE_ROLE_KEY') or os.environ.get('SUPABASE_KEY'),
+        'bucket': os.environ.get('SUPABASE_BUCKET'),
+        'public_base': os.environ.get('SUPABASE_PUBLIC_BASE_URL'),
+    }
+
+
+def _sb_enabled():
+    cfg = _sb_config()
+    return bool(cfg['url'] and cfg['service_key'] and cfg['bucket'])
+
+
+def _get_supabase_client():
+    if not _sb_enabled():
+        return None
+    from supabase import create_client
+    cfg = _sb_config()
+    return create_client(cfg['url'], cfg['service_key'])
+
 # Cloudflare R2 / S3-compatible storage helpers
 
 def _r2_config():
@@ -1225,28 +1248,43 @@ def profile():
                     name, ext = os.path.splitext(filename)
                     unique_filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
 
-                    # Try S3/R2 upload if configured
-                    if _r2_enabled():
+                    # Try Supabase Storage first if configured, then S3/R2, else local
+                    if _sb_enabled():
                         try:
-                            s3 = _get_s3_client()
-                            cfg = _r2_config()
-                            # Upload stream to bucket with content type
-                            s3.upload_fileobj(
-                                file.stream,
-                                cfg['bucket'],
-                                unique_filename,
-                                ExtraArgs={'ContentType': file.mimetype}
-                            )
+                            supa = _get_supabase_client()
+                            cfg = _sb_config()
+                            # Read file content for upload
+                            file.stream.seek(0)
+                            content = file.stream.read()
+                            path = unique_filename
+                            res = supa.storage.from_(cfg['bucket']).upload(path, content, {
+                                'contentType': file.mimetype,
+                                'upsert': True
+                            })
                             # Store object key
-                            user.profile_picture = unique_filename
-                        except Exception as e:
-                            # Fallback to local save if upload fails
-                            uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
-                            os.makedirs(uploads_dir, exist_ok=True)
-                            file_path = os.path.join(uploads_dir, unique_filename)
-                            file.save(file_path)
-                            user.profile_picture = unique_filename
-                    else:
+                            user.profile_picture = path
+                        except Exception:
+                            # Fall through to next options
+                            pass
+
+                    if not user.profile_picture:
+                        if _r2_enabled():
+                            try:
+                                s3 = _get_s3_client()
+                                cfg = _r2_config()
+                                # Reset stream before reuse
+                                file.stream.seek(0)
+                                s3.upload_fileobj(
+                                    file.stream,
+                                    cfg['bucket'],
+                                    unique_filename,
+                                    ExtraArgs={'ContentType': file.mimetype}
+                                )
+                                user.profile_picture = unique_filename
+                            except Exception:
+                                pass
+
+                    if not user.profile_picture:
                         # Local save (development or no object storage configured)
                         uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
                         os.makedirs(uploads_dir, exist_ok=True)
@@ -1294,16 +1332,29 @@ def profile_picture(filename):
     import os
     from flask import send_from_directory
 
+    # Supabase public or signed URL
+    try:
+        if _sb_enabled():
+            cfg = _sb_config()
+            supa = _get_supabase_client()
+            if cfg['public_base']:
+                base = cfg['public_base'].rstrip('/')
+                return redirect(f"{base}/{filename}")
+            # Signed URL fallback
+            signed = supa.storage.from_(cfg['bucket']).create_signed_url(filename, 3600)
+            if signed and isinstance(signed, dict) and signed.get('signedURL'):
+                return redirect(signed['signedURL'])
+    except Exception:
+        pass
+
     # If R2/S3 is configured, redirect to public URL or a presigned URL
     try:
         if _r2_enabled():
             cfg = _r2_config()
             if cfg['public_base']:
-                # Public base URL provided
                 base = cfg['public_base'].rstrip('/')
                 return redirect(f"{base}/{filename}")
             else:
-                # Generate presigned URL as a fallback
                 s3 = _get_s3_client()
                 url = s3.generate_presigned_url(
                     'get_object',
@@ -1312,7 +1363,6 @@ def profile_picture(filename):
                 )
                 return redirect(url)
     except Exception:
-        # Fall through to local file serving
         pass
 
     # Fallback: serve from local uploads directory
