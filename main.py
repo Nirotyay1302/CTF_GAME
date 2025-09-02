@@ -57,7 +57,7 @@ app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__fil
 
 # Database configuration with psycopg3 support
 raw_url = os.environ.get('DATABASE_URL')
-database_url = (raw_url or '').strip() or 'sqlite:///ctf.db'
+database_url = (raw_url or '').strip() or 'sqlite:///app.db'
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
 elif database_url.startswith('postgresql://'):
@@ -117,6 +117,21 @@ def nl2br(value):
 
 app.jinja_env.filters['nl2br'] = nl2br
 migrate = Migrate(app, db)
+# Ensure database schema is up-to-date on startup (Render may ignore Procfile's "flask db upgrade")
+try:
+    from flask_migrate import upgrade as _alembic_upgrade
+    with app.app_context():
+        try:
+            _alembic_upgrade()
+        except Exception as _m_err:
+            app.logger.error(f'DB migration failed: {_m_err}; attempting to create_all() as fallback')
+            try:
+                db.create_all()
+            except Exception as _ca_err:
+                app.logger.error(f'db.create_all() fallback failed: {_ca_err}')
+except Exception as _startup_db_err:
+    # Do not crash the app if migrations cannot run at import time
+    pass
 mail = Mail(app)
 compress = Compress(app)
 
