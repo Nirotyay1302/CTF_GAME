@@ -136,6 +136,40 @@ except Exception as _startup_db_err:
 mail = Mail(app)
 compress = Compress(app)
 
+# Ensure at least one admin account exists if credentials are provided via env
+
+def _ensure_admin_account():
+    try:
+        with app.app_context():
+            existing_admin = User.query.filter_by(role='admin').first()
+            if existing_admin:
+                return
+            admin_username = (os.environ.get('ADMIN_USERNAME') or '').strip()
+            admin_email = (os.environ.get('ADMIN_EMAIL') or '').strip()
+            admin_password = os.environ.get('ADMIN_PASSWORD')
+            if admin_username and admin_email and admin_password:
+                try:
+                    admin_user = User(
+                        username=admin_username,
+                        email=admin_email,
+                        password_hash=generate_password_hash(admin_password),
+                        role='admin',
+                        is_player=False,
+                        created_at=datetime.utcnow()
+                    )
+                    db.session.add(admin_user)
+                    db.session.commit()
+                    app.logger.info(f"Admin account created: {admin_username}")
+                except Exception as e:
+                    db.session.rollback()
+                    app.logger.error(f"Failed to create admin account: {e}")
+            else:
+                app.logger.info("No admin user exists and ADMIN_* env vars not provided; skipping auto-create")
+    except Exception as e:
+        app.logger.error(f"Admin bootstrap error: {e}")
+
+_ensure_admin_account()
+
 # Initialize SocketIO if available
 if SOCKETIO_AVAILABLE:
     socketio = SocketIO(app, cors_allowed_origins="*", async_mode="gevent")
@@ -347,6 +381,18 @@ def send_email(subject, recipients, body, html=None):
 @app.context_processor
 def inject_user():
     return dict(current_user=get_current_user())
+
+@app.context_processor
+def inject_admin_counts():
+    """Inject global admin counts for sidebar badges"""
+    try:
+        return {
+            'total_users': User.query.filter(User.role != 'admin').count(),
+            'total_challenges': Challenge.query.count(),
+            'total_teams': Team.query.count()
+        }
+    except Exception:
+        return {'total_users': 0, 'total_challenges': 0, 'total_teams': 0}
 
 @app.before_request
 def load_logged_in_user():
@@ -1972,6 +2018,18 @@ def admin_chat():
                            today_messages=today_messages,
                            banned_words=banned_words,
                            auto_moderate=auto_moderate)
+
+@app.route('/api/chat/clear', methods=['POST'])
+@admin_required
+def api_clear_chat():
+    """Clear all chat history (public and team chats). Admin only."""
+    try:
+        ChatMessage.query.delete()
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # API Routes
 @app.route('/api/stats')
