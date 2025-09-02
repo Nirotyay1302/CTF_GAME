@@ -1484,13 +1484,51 @@ def profile_picture(filename):
         if _sb_enabled():
             cfg = _sb_config()
             supa = _get_supabase_client()
+            # If admin configured a public base URL, use it directly
             if cfg['public_base']:
                 base = cfg['public_base'].rstrip('/')
                 return redirect(f"{base}/{filename}")
-            # Signed URL fallback
+            # Try get_public_url first (works if bucket is public)
+            try:
+                pub = supa.storage.from_(cfg['bucket']).get_public_url(filename)
+                public_url = None
+                if isinstance(pub, dict):
+                    public_url = pub.get('publicURL') or pub.get('public_url')
+                    if not public_url and isinstance(pub.get('data'), dict):
+                        d = pub['data']
+                        public_url = d.get('publicUrl') or d.get('publicURL') or d.get('public_url')
+                else:
+                    d = getattr(pub, 'data', None)
+                    if isinstance(d, dict):
+                        public_url = d.get('publicUrl') or d.get('publicURL') or d.get('public_url')
+                if public_url:
+                    return redirect(public_url)
+            except Exception:
+                pass
+            # Signed URL fallback (for private buckets)
             signed = supa.storage.from_(cfg['bucket']).create_signed_url(filename, 3600)
-            if signed and isinstance(signed, dict) and signed.get('signedURL'):
-                return redirect(signed['signedURL'])
+            signed_url = None
+            if isinstance(signed, str):
+                signed_url = signed
+            elif isinstance(signed, dict):
+                signed_url = signed.get('signedURL') or signed.get('signed_url')
+                if not signed_url and isinstance(signed.get('data'), dict):
+                    d = signed['data']
+                    signed_url = d.get('signedURL') or d.get('signed_url')
+            else:
+                d = getattr(signed, 'data', None)
+                if isinstance(d, dict):
+                    signed_url = d.get('signedURL') or d.get('signed_url')
+            if signed_url:
+                # Some SDKs return a relative path like /object/sign/...
+                if signed_url.startswith('/'):
+                    base = (cfg.get('url') or '').rstrip('/')
+                    # Ensure we prefix with /storage/v1 when missing
+                    if signed_url.startswith('/storage'):
+                        signed_url = f"{base}{signed_url}"
+                    else:
+                        signed_url = f"{base}/storage/v1{signed_url}"
+                return redirect(signed_url)
     except Exception:
         pass
 
