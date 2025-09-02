@@ -54,7 +54,20 @@ app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+# Configure uploads directory with environment override and container-safe defaults
+_upload_env = (os.environ.get('UPLOAD_FOLDER') or '').strip()
+if _upload_env:
+    app.config['UPLOAD_FOLDER'] = _upload_env
+else:
+    # Prefer a writable tmp directory on container platforms; fallback to static/uploads locally
+    _tmp_default = os.path.join('/tmp', 'ctf_uploads')
+    try:
+        os.makedirs(_tmp_default, exist_ok=True)
+        app.config['UPLOAD_FOLDER'] = _tmp_default
+    except Exception:
+        app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+# Ensure the folder exists
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Database configuration with psycopg3 support
 raw_url = os.environ.get('DATABASE_URL')
@@ -1374,7 +1387,7 @@ def profile():
 
                     if not saved:
                         # Local save (development or no object storage configured)
-                        uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+                        uploads_dir = app.config.get('UPLOAD_FOLDER') or os.path.join(app.root_path, 'static', 'uploads')
                         os.makedirs(uploads_dir, exist_ok=True)
                         file_path = os.path.join(uploads_dir, unique_filename)
                         file.save(file_path)
@@ -1458,7 +1471,7 @@ def delete_profile_picture():
     # Local filesystem
     if not deleted:
         try:
-            uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+            uploads_dir = app.config.get('UPLOAD_FOLDER') or os.path.join(app.root_path, 'static', 'uploads')
             file_path = os.path.join(uploads_dir, filename)
             if os.path.exists(file_path):
                 os.remove(file_path)
@@ -1551,7 +1564,7 @@ def profile_picture(filename):
         pass
 
     # Fallback: serve from local uploads directory
-    uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+    uploads_dir = app.config.get('UPLOAD_FOLDER') or os.path.join(app.root_path, 'static', 'uploads')
     file_path = os.path.join(uploads_dir, filename)
     if os.path.exists(file_path):
         return send_from_directory(uploads_dir, filename)
