@@ -1390,6 +1390,10 @@ def profile():
                         uploads_dir = app.config.get('UPLOAD_FOLDER') or os.path.join(app.root_path, 'static', 'uploads')
                         os.makedirs(uploads_dir, exist_ok=True)
                         file_path = os.path.join(uploads_dir, unique_filename)
+                        try:
+                            file.stream.seek(0)
+                        except Exception:
+                            pass
                         file.save(file_path)
                         user.profile_picture = unique_filename
 
