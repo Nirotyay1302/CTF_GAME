@@ -1492,6 +1492,12 @@ def profile_picture(filename):
     import os
     from flask import send_from_directory
 
+    # Prefer local file if it exists (works best on platforms with writable /tmp or mounted disk)
+    uploads_dir = app.config.get('UPLOAD_FOLDER') or os.path.join(app.root_path, 'static', 'uploads')
+    file_path = os.path.join(uploads_dir, filename)
+    if os.path.exists(file_path):
+        return send_from_directory(uploads_dir, filename)
+
     # Supabase public or signed URL
     try:
         if _sb_enabled():
@@ -2351,7 +2357,7 @@ if SOCKETIO_AVAILABLE:
                     'content': message,
                     'created_at': chat_message.created_at.isoformat(),
                     'room': room,
-                    'user_avatar': user.profile_picture or '/static/images/default-avatar.svg'
+                    'user_avatar': (url_for('profile_picture', filename=user.profile_picture) if user.profile_picture else url_for('static', filename='images/default-avatar.svg'))
                 }, room=room)
 
     @socketio.on('typing')
