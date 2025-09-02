@@ -18,6 +18,9 @@
             <a href="{{ url_for('admin_dashboard') }}" class="btn btn-primary">
                 <i class="fas fa-arrow-left"></i> Back to Dashboard
             </a>
+            <a href="{{ url_for('admin_seed_45_challenges') }}" class="btn btn-warning" onclick="return confirm('This will replace existing challenges with the predefined 45 challenges. Continue?');">
+                <i class="fas fa-seedling"></i> Seed 45 Challenges
+            </a>
             <a href="/admin/challenges/create" class="btn btn-success">
                 <i class="fas fa-plus"></i> Create Challenge
             </a>

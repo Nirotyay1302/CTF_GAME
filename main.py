@@ -4,6 +4,7 @@ A clean, modern, and fully functional CTF application
 """
 
 import os
+import subprocess
 import secrets
 import hashlib
 import time
@@ -1259,48 +1260,73 @@ def profile():
                     import uuid
                     from werkzeug.utils import secure_filename
 
-                    # Generate unique filename
+                    # Server-side validation
+                    allowed_exts = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.bmp'}
                     filename = secure_filename(file.filename)
                     name, ext = os.path.splitext(filename)
-                    unique_filename = f"{name}_{uuid.uuid4().hex[:8]}{ext}"
+                    if ext.lower() not in allowed_exts:
+                        flash('Invalid file type. Please upload an image (PNG, JPG, JPEG, GIF, WebP, BMP).', 'error')
+                        return redirect(url_for('profile'))
+
+                    # Size check (max 5MB)
+                    max_size = 5 * 1024 * 1024
+                    size_ok = True
+                    try:
+                        pos = file.stream.tell()
+                        file.stream.seek(0, os.SEEK_END)
+                        size = file.stream.tell()
+                        file.stream.seek(0)
+                        size_ok = size <= max_size and size > 0
+                    except Exception:
+                        # Fallback to request content length if available
+                        content_len = request.content_length or 0
+                        size_ok = content_len == 0 or content_len <= (max_size + 1024 * 1024)  # allow some overhead
+                    if not size_ok:
+                        flash('File too large. Maximum size is 5MB.', 'error')
+                        return redirect(url_for('profile'))
+
+                    # Basic mimetype check
+                    if not (file.mimetype or '').lower().startswith('image/'):
+                        flash('Invalid file type. Please upload a valid image.', 'error')
+                        return redirect(url_for('profile'))
+
+                    unique_filename = f"{name}_{uuid.uuid4().hex[:8]}{ext.lower()}"
 
                     # Try Supabase Storage first if configured, then S3/R2, else local
+                    saved = False
                     if _sb_enabled():
                         try:
                             supa = _get_supabase_client()
                             cfg = _sb_config()
-                            # Read file content for upload
                             file.stream.seek(0)
                             content = file.stream.read()
                             path = unique_filename
-                            res = supa.storage.from_(cfg['bucket']).upload(path, content, {
+                            supa.storage.from_(cfg['bucket']).upload(path, content, {
                                 'contentType': file.mimetype,
                                 'upsert': True
                             })
-                            # Store object key
                             user.profile_picture = path
+                            saved = True
                         except Exception:
-                            # Fall through to next options
                             pass
 
-                    if not user.profile_picture:
-                        if _r2_enabled():
-                            try:
-                                s3 = _get_s3_client()
-                                cfg = _r2_config()
-                                # Reset stream before reuse
-                                file.stream.seek(0)
-                                s3.upload_fileobj(
-                                    file.stream,
-                                    cfg['bucket'],
-                                    unique_filename,
-                                    ExtraArgs={'ContentType': file.mimetype}
-                                )
-                                user.profile_picture = unique_filename
-                            except Exception:
-                                pass
+                    if not saved and _r2_enabled():
+                        try:
+                            s3 = _get_s3_client()
+                            cfg = _r2_config()
+                            file.stream.seek(0)
+                            s3.upload_fileobj(
+                                file.stream,
+                                cfg['bucket'],
+                                unique_filename,
+                                ExtraArgs={'ContentType': file.mimetype}
+                            )
+                            user.profile_picture = unique_filename
+                            saved = True
+                        except Exception:
+                            pass
 
-                    if not user.profile_picture:
+                    if not saved:
                         # Local save (development or no object storage configured)
                         uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
                         os.makedirs(uploads_dir, exist_ok=True)
@@ -1334,13 +1360,72 @@ def profile():
         func.sum(Challenge.points).label('points')
     ).join(Solve).filter(Solve.user_id == user.id).group_by(Challenge.category).all()
 
+    # Team info for template
+    team_name = None
+    team_role = None
+    if user.team_membership and user.team_membership.team:
+        team_name = user.team_membership.team.name
+        team_role = user.team_membership.role
+
     return render_template('profile.html',
                          user=user,
                          user_score=user_score,
                          user_rank=user_rank,
                          solve_count=solve_count,
+                         solves_count=solve_count,
+                         team_name=team_name,
+                         team_role=team_role,
                          solve_history=solve_history,
                          category_stats=category_stats)
+
+@app.route('/profile/picture/delete', methods=['POST'])
+@login_required
+def delete_profile_picture():
+    """Delete the current user's profile picture from storage and clear DB field"""
+    user = get_current_user()
+    if not user or not user.profile_picture:
+        return jsonify({'success': False, 'error': 'No profile picture to delete'}), 400
+    filename = user.profile_picture
+    deleted = False
+
+    # Try Supabase
+    try:
+        if _sb_enabled():
+            supa = _get_supabase_client()
+            cfg = _sb_config()
+            supa.storage.from_(cfg['bucket']).remove([filename])
+            deleted = True
+    except Exception:
+        pass
+
+    # Try R2/S3
+    if not deleted:
+        try:
+            if _r2_enabled():
+                s3 = _get_s3_client()
+                cfg = _r2_config()
+                s3.delete_object(Bucket=cfg['bucket'], Key=filename)
+                deleted = True
+        except Exception:
+            pass
+
+    # Local filesystem
+    if not deleted:
+        try:
+            uploads_dir = os.path.join(app.root_path, 'static', 'uploads')
+            file_path = os.path.join(uploads_dir, filename)
+            if os.path.exists(file_path):
+                os.remove(file_path)
+        except Exception:
+            pass
+
+    try:
+        user.profile_picture = None
+        db.session.commit()
+        return jsonify({'success': True})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': 'DB error'}), 500
 
 @app.route('/profile_picture/<filename>')
 def profile_picture(filename):
@@ -1619,6 +1704,23 @@ def admin_challenges():
         })
 
     return render_template('admin/challenges.html', challenge_stats=challenge_stats)
+
+@app.route('/admin/seed_45_challenges', methods=['GET'])
+@admin_required
+def admin_seed_45_challenges():
+    """Seed the database with 45 comprehensive challenges"""
+    try:
+        script_path = os.path.join(app.root_path, 'create_45_challenges.py')
+        result = subprocess.run([sys.executable, script_path], capture_output=True, text=True, timeout=180)
+        if result.returncode != 0:
+            app.logger.error(f'seed_45 failed: {result.stderr}\n{result.stdout}')
+            flash('Seeding failed. See logs for details.', 'error')
+        else:
+            flash('Seeded 45 challenges successfully.', 'success')
+    except Exception as e:
+        app.logger.error(f'seed_45 exception: {e}')
+        flash('Seeding encountered an error.', 'error')
+    return redirect(url_for('admin_challenges'))
 
 @app.route('/admin/challenges/create', methods=['GET', 'POST'])
 @admin_required
