@@ -9,6 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from main import app, db
 from models import Challenge, Hint
+from sqlalchemy.sql import func
 from datetime import datetime
 
 def create_comprehensive_challenges():
@@ -17,11 +18,6 @@ def create_comprehensive_challenges():
     
     with app.app_context():
         try:
-            # Clear existing challenges
-            print("🗑️ Clearing existing challenges...")
-            Challenge.query.delete()
-            Hint.query.delete()
-            
             challenges_data = [
                 # WEB CHALLENGES (15)
                 {
@@ -679,9 +675,31 @@ def create_comprehensive_challenges():
             print(f"📝 Creating {len(challenges_data)} challenges...")
             
             for i, challenge_data in enumerate(challenges_data, 1):
+                title = challenge_data['title']
+                existing = Challenge.query.filter_by(title=title).first()
+                if existing:
+                    # Ensure hints exist without duplicating
+                    existing_hints = {h.content for h in Hint.query.filter_by(challenge_id=existing.id).all()}
+                    if 'hints' in challenge_data:
+                        next_order = (db.session.query(func.coalesce(func.max(Hint.display_order), 0))
+                                      .filter(Hint.challenge_id == existing.id).scalar() or 0) + 1
+                        for hint_data in challenge_data['hints']:
+                            if hint_data['content'] not in existing_hints:
+                                hint = Hint(
+                                    challenge_id=existing.id,
+                                    content=hint_data['content'],
+                                    cost=hint_data['cost'],
+                                    display_order=next_order
+                                )
+                                db.session.add(hint)
+                                next_order += 1
+                    print(f"⏭️ Skipped existing challenge: {title}")
+                    continue
+
+                    
                 # Create challenge
                 challenge = Challenge(
-                    title=challenge_data['title'],
+                    title=title,
                     description=challenge_data['description'],
                     category=challenge_data['category'],
                     difficulty=challenge_data['difficulty'],
@@ -705,7 +723,7 @@ def create_comprehensive_challenges():
                         )
                         db.session.add(hint)
                 
-                print(f"✅ Created challenge {i}: {challenge_data['title']}")
+                print(f"✅ Created challenge {i}: {title}")
             
             # Commit all changes
             db.session.commit()
