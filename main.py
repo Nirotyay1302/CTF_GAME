@@ -59,19 +59,65 @@ _upload_env = (os.environ.get('UPLOAD_FOLDER') or '').strip()
 if _upload_env:
     app.config['UPLOAD_FOLDER'] = _upload_env
 else:
-    # Prefer a writable tmp directory on container platforms; fallback to static/uploads locally
-    _tmp_default = os.path.join('/tmp', 'ctf_uploads')
-    try:
-        os.makedirs(_tmp_default, exist_ok=True)
-        app.config['UPLOAD_FOLDER'] = _tmp_default
-    except Exception:
-        app.config['UPLOAD_FOLDER'] = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+    # Prefer a persistent directory if available (e.g., Render disk at /var/data),
+    # then writable tmp, fallback to static/uploads locally
+    _persist_candidates = [
+        (os.environ.get('PERSISTENT_DIR') or '').strip() or None,
+        '/var/data',
+        '/data'
+    ]
+    _uploads_dir = None
+    for _base in _persist_candidates:
+        if not _base:
+            continue
+        try:
+            os.makedirs(_base, exist_ok=True)
+            if os.access(_base, os.W_OK):
+                _uploads = os.path.join(_base, 'uploads')
+                os.makedirs(_uploads, exist_ok=True)
+                _uploads_dir = _uploads
+                break
+        except Exception:
+            continue
+    if not _uploads_dir:
+        _tmp_default = os.path.join('/tmp', 'ctf_uploads')
+        try:
+            os.makedirs(_tmp_default, exist_ok=True)
+            _uploads_dir = _tmp_default
+        except Exception:
+            _uploads_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'static', 'uploads')
+    app.config['UPLOAD_FOLDER'] = _uploads_dir
 # Ensure the folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
 
 # Database configuration with psycopg3 support
 raw_url = os.environ.get('DATABASE_URL')
-database_url = (raw_url or '').strip() or 'sqlite:///app.db'
+database_url = (raw_url or '').strip()
+if not database_url:
+    # Prefer persistent SQLite location if available (e.g., Render disk mounted at /var/data)
+    _sqlite_name = 'app.db'
+    _db_candidates = [
+        (os.environ.get('PERSISTENT_DIR') or '').strip() or None,
+        '/var/data',
+        '/data',
+        os.path.join(os.path.dirname(os.path.abspath(__file__)), 'instance')
+    ]
+    _db_path = None
+    for _base in _db_candidates:
+        if not _base:
+            continue
+        try:
+            os.makedirs(_base, exist_ok=True)
+            if os.access(_base, os.W_OK):
+                _db_path = os.path.join(_base, _sqlite_name)
+                break
+        except Exception:
+            continue
+    if not _db_path:
+        # Absolute path fallback in app root
+        _db_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), _sqlite_name)
+    database_url = f"sqlite:///{_db_path}"
+
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql+psycopg://', 1)
 elif database_url.startswith('postgresql://'):
@@ -1310,6 +1356,20 @@ def profile():
                 user.bio = request.form.get('bio', '').strip()
             if 'country' in request.form:
                 user.country = request.form.get('country', '').strip()
+            if 'gender' in request.form:
+                gender = (request.form.get('gender') or '').strip().lower()
+                user.gender = gender if gender in ('male', 'female', 'other') else None
+            if 'timezone' in request.form:
+                user.timezone = (request.form.get('timezone') or '').strip()
+            if 'date_of_birth' in request.form:
+                dob_str = (request.form.get('date_of_birth') or '').strip()
+                if dob_str:
+                    try:
+                        from datetime import datetime as _dt
+                        user.date_of_birth = _dt.strptime(dob_str, '%Y-%m-%d').date()
+                    except Exception:
+                        # Ignore invalid date input
+                        pass
 
             # Handle profile picture upload
             if 'profile_picture' in request.files:
